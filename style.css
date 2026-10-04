@@ -1,0 +1,20 @@
+#ntr-detector-panel { padding: 0 8px 12px; }
+#ntr-detector-panel .inline-drawer-content { display: none; }
+#ntr-detector-panel label { display: block; margin: 8px 0; }
+#ntr-detector-panel .text_pole { width: 100%; box-sizing: border-box; }
+#ntr-detector-panel textarea { min-height: 90px; resize: vertical; }
+#ntr-detector-panel .ntr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+#ntr-detector-panel .ntr-check { display: flex; align-items: center; gap: 7px; }
+#ntr-detector-panel .ntr-check input { width: auto; flex: none; }
+#ntr-detector-panel .ntr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+#ntr-detector-panel progress { width: 100%; height: 14px; }
+#ntr-detector-panel #ntr-results { max-height: 55vh; overflow: auto; margin-top: 8px; }
+#ntr-detector-panel #ntr-results section { margin: 14px 0; }
+#ntr-detector-panel #ntr-results details { margin: 7px 0; padding: 8px; border: 1px solid var(--SmartThemeBorderColor, #777); border-radius: 6px; }
+#ntr-detector-panel #ntr-results .ntr-hit { border-left: 4px solid #ef544f; }
+#ntr-detector-panel #ntr-results .ntr-miss { opacity: .75; }
+#ntr-detector-panel #ntr-results summary { cursor: pointer; font-weight: 600; }
+#ntr-detector-panel .ntr-evidence { white-space: pre-wrap; overflow-wrap: anywhere; }
+#ntr-detector-panel mark { color: #231a00; background: #ffd875; padding: 1px 2px; }
+.ntr-message-warning { margin: 8px 0; padding: 8px 10px; border-left: 4px solid #e33; background: rgba(220, 45, 45, .16); font-weight: 600; }
+.ntr-located { outline: 3px solid #e33; }
