@@ -11,6 +11,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (ne
 ### Features
 
 - Per-field character card scan; per-entry world info scan; optional chat scan and realtime detection.
+- The current character card is detected automatically when it is opened or switched (on by default, can be disabled), so no manual scan is needed.
 - Text is split into chunks by paragraph, pre-filtered locally by keywords, then sent to your model for strict JSON output. The pre-filter can be disabled.
 - Configurable concurrency, timeout, retries, and cancellation. The scan aborts automatically after 3 consecutive failures and keeps already-completed results.
 - The SHA-256 cache key includes text, model, endpoint, prompt, and related parameters; cached under `extension_settings['ntr-detector'].cache`.
@@ -21,6 +22,8 @@ A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (ne
 
 1. Copy the whole `ntr-detector` folder into `SillyTavern/public/scripts/extensions/third-party/`, so that the path `SillyTavern/public/scripts/extensions/third-party/ntr-detector/manifest.json` exists.
 2. Restart SillyTavern or refresh the browser, then enable "NTR 内容检测器" in the extensions panel.
+
+When installed as a Git repository (via SillyTavern's URL install), the extension updates automatically, because `manifest.json` sets `"auto_update": true`. This requires the machine running SillyTavern to be able to reach GitHub.
 
 ### Configuration
 
@@ -41,6 +44,7 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 ### 功能
 
 - 角色卡逐字段扫描；世界书逐条目扫描；聊天扫描与实时检测可选。
+- 打开或切换角色卡时自动检测该角色卡（默认开启，可关闭），无需手动点击扫描。
 - 文本按段落切块，先用本地关键词粗筛，再向自配模型请求严格 JSON。可关闭粗筛。
 - 扫描并发、超时、重试与取消均可配置或控制。连续 3 项失败时自动中止，保留已完成结果。
 - SHA-256 缓存键包含文本、模型、接口地址、提示词和相关参数；缓存位于 `extension_settings['ntr-detector'].cache`。
@@ -51,6 +55,8 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 
 1. 将整个 `ntr-detector` 文件夹复制到 `SillyTavern/public/scripts/extensions/third-party/`，形成 `SillyTavern/public/scripts/extensions/third-party/ntr-detector/manifest.json`。
 2. 重启 SillyTavern 或刷新浏览器，在扩展面板启用「NTR 内容检测器」。
+
+当以 Git 仓库方式（酒馆的 URL 安装）安装时，扩展会自动更新，因为 `manifest.json` 中设置了 `"auto_update": true`。这要求运行 SillyTavern 的机器能访问 GitHub。
 
 本仓库不会自动安装到你的 SillyTavern。
 

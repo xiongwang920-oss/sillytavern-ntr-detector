@@ -11,7 +11,7 @@ NTR（寝取られ / Netorare）指：存在稳定伴侣关系（恋人、夫妻
 const DEFAULTS = {
     baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '', temperature: 0,
     concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', skipPrefilter: false,
-    scanChat: false, realtime: false, cache: {},
+    scanChat: false, realtime: false, autoCard: true, cache: {},
 };
 const KEYWORDS = /ntr|netorare|netori|netorase|寝取(?:られ|り)?|绿帽|綠帽|绿奴|綠奴|戴绿|戴綠|被绿|被綠|出轨|出軌|偷情|劈腿|cuckold|cuckquean|cheating/i;
 const FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions'];
@@ -22,6 +22,8 @@ for (const [key, value] of Object.entries(DEFAULTS)) if (settings[key] === undef
 if (!settings.cache || typeof settings.cache !== 'object' || Array.isArray(settings.cache)) settings.cache = {};
 let report = null;
 let activeScan = null;
+let autoTimer = null;
+let lastAutoSignature = null;
 
 function el(tag, className = '', content = '') {
     const node = document.createElement(tag);
@@ -298,15 +300,44 @@ async function locateWorldEntry(name, uid) {
     }
     note('已打开世界书，但当前筛选或分页未显示该条目。请清除编辑器筛选后查找。', 'warning');
 }
+function setScanning(busy) {
+    $('#ntr-scan').prop('disabled', busy);
+    $('#ntr-cancel').prop('disabled', !busy);
+}
+async function executeScan(items, config, controller) {
+    report = { scannedAt: new Date().toISOString(), model: config.model, total: items.length, cancelled: false, results: [], errors: [] };
+    let next = 0, failures = 0;
+    showProgress(0, items.length, '准备开始');
+    const worker = async () => {
+        while (!controller.signal.aborted) {
+            const index = next++;
+            if (index >= items.length) return;
+            const item = items[index];
+            try {
+                const decision = await detect(item.text, config, controller.signal);
+                report.results.push({ ...item, decision, cached: decision.cached });
+                failures = 0;
+            } catch (error) {
+                if (error.name === 'AbortError') return;
+                report.errors.push(`${item.title}：${error.message}`);
+                if (++failures >= 3) { controller.abort(); note('连续 3 项检测失败，扫描已中止；已完成结果已保留。', 'error'); }
+            }
+            showProgress(report.results.length + report.errors.length, items.length, item.title);
+            renderResults();
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(config.concurrency, items.length) }, worker));
+    report.cancelled = controller.signal.aborted;
+    renderResults();
+    return report;
+}
 async function runScan() {
     if (activeScan) return;
     let config;
     try { config = currentConfig(); } catch (error) { return note(error.message, 'error'); }
     const controller = new AbortController();
     activeScan = controller;
-    $('#ntr-scan').prop('disabled', true);
-    $('#ntr-cancel').prop('disabled', false);
-    report = { scannedAt: new Date().toISOString(), model: config.model, total: 0, cancelled: false, results: [], errors: [] };
+    setScanning(true);
     try {
         const context = getContext();
         const items = [];
@@ -316,40 +347,52 @@ async function runScan() {
         else if (selection) items.push(...await worldItems([selection], controller.signal));
         if (settings.scanChat) items.push(...chatItems(context));
         if (!items.length) throw new Error('没有可扫描的文本。');
-        report.total = items.length;
-        let next = 0, failures = 0;
-        showProgress(0, items.length, '准备开始');
-        const worker = async () => {
-            while (!controller.signal.aborted) {
-                const index = next++;
-                if (index >= items.length) return;
-                const item = items[index];
-                try {
-                    const decision = await detect(item.text, config, controller.signal);
-                    report.results.push({ ...item, decision, cached: decision.cached });
-                    failures = 0;
-                } catch (error) {
-                    if (error.name === 'AbortError') return;
-                    report.errors.push(`${item.title}：${error.message}`);
-                    if (++failures >= 3) { controller.abort(); note('连续 3 项检测失败，扫描已中止；已完成结果已保留。', 'error'); }
-                }
-                showProgress(report.results.length + report.errors.length, items.length, item.title);
-                renderResults();
-            }
-        };
-        await Promise.all(Array.from({ length: Math.min(config.concurrency, items.length) }, worker));
-        report.cancelled = controller.signal.aborted;
-        renderResults();
+        await executeScan(items, config, controller);
         if (report.errors.length) note(`有 ${report.errors.length} 项失败；可导出已完成结果。`, 'warning');
     } catch (error) {
-        report.cancelled = true;
         if (error.name !== 'AbortError') note(error.message, 'error');
-        renderResults();
+        if (report) { report.cancelled = true; renderResults(); }
     } finally {
         activeScan = null;
-        $('#ntr-scan').prop('disabled', false);
-        $('#ntr-cancel').prop('disabled', true);
+        setScanning(false);
     }
+}
+// 打开/切换角色卡时自动检测，无需手动点击扫描。API 未配置或未选角色时静默跳过。
+async function autoScanCard() {
+    if (!settings.autoCard || activeScan) return;
+    const context = getContext();
+    if (!context.characters?.[context.characterId]) return;
+    let config;
+    try { config = currentConfig(); } catch { return; }
+    let items;
+    try { items = characterItems(context); } catch { return; }
+    if (!items.length) return;
+    const signature = JSON.stringify([context.characterId, items.map(x => `${x.title}\u0000${x.text}`)]);
+    if (signature === lastAutoSignature) return;
+    lastAutoSignature = signature;
+    const controller = new AbortController();
+    activeScan = controller;
+    setScanning(true);
+    showProgress(0, items.length, '自动检测当前角色卡');
+    try {
+        await executeScan(items, config, controller);
+        const hits = report.results.filter(x => x.decision.has_ntr);
+        if (hits.length) {
+            const confidence = Math.max(...hits.map(x => x.decision.confidence));
+            note(`自动检测：当前角色卡命中 ${hits.length} 项 NTR 内容（最高置信度 ${(confidence * 100).toFixed(0)}%）。`, 'warning');
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') console.warn('[NTR 内容检测器] 自动检测失败：', error);
+        if (report) { report.cancelled = true; renderResults(); }
+    } finally {
+        activeScan = null;
+        setScanning(false);
+    }
+}
+function scheduleAutoScan() {
+    if (!settings.autoCard) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(autoScanCard, 400);
 }
 function downloadReport(format) {
     if (!report) return note('还没有检测结果。', 'warning');
@@ -399,6 +442,7 @@ function buildUI() {
       <label class="ntr-check"><input id="ntr-skip" type="checkbox">跳过关键词粗筛，全部送检</label>
       <label class="ntr-check"><input id="ntr-chat" type="checkbox">扫描当前聊天记录</label>
       <label class="ntr-check"><input id="ntr-realtime" type="checkbox">实时检测新 AI 回复</label>
+      <label class="ntr-check"><input id="ntr-autocard" type="checkbox">打开角色卡时自动检测（无需手动扫描）</label>
       <div class="ntr-actions"><button id="ntr-test" class="menu_button">测试连接</button><button id="ntr-clear" class="menu_button">清除缓存</button></div>
       <hr><label class="ntr-check"><input id="ntr-card" type="checkbox" checked>扫描当前角色卡</label>
       <label>世界书<select id="ntr-world" class="text_pole"><option value="">不扫描世界书</option><option value="__bound__">当前角色绑定的世界书（主 + 附加）</option></select></label>
@@ -407,7 +451,7 @@ function buildUI() {
       <div class="ntr-actions"><button id="ntr-json" class="menu_button">导出 JSON</button><button id="ntr-md" class="menu_button">导出 Markdown</button></div>
       <div id="ntr-results"></div></div></div>`;
     document.querySelector('#extensions_settings')?.append(panel);
-    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime' };
+    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime', '#ntr-autocard': 'autoCard' };
     for (const [selector, key] of Object.entries(map)) {
         const input = $(selector);
         input.prop('type') === 'checkbox' ? input.prop('checked', settings[key]) : input.val(settings[key]);
@@ -438,4 +482,7 @@ function populateWorlds() {
 $(function () {
     buildUI();
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(event_types.CHAT_CHANGED, scheduleAutoScan);
+    eventSource.on(event_types.APP_READY, scheduleAutoScan);
+    scheduleAutoScan();
 });
