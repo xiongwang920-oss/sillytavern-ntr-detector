@@ -1,8 +1,10 @@
-# NTR Content Detector · NTR 内容检测器
+# Theseus Artifact · 忒修斯神器
 
-A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (netorare) content in character cards, world info, and chat, using your own OpenAI-compatible API. All UI text is in Chinese.
+A third-party front-end extension for **SillyTavern 1.12+** that both prevents and detects NTR (netorare) content: it silently injects a built-in "pure love" rule into every generation, and detects NTR content in character cards, world info, and chat using your own OpenAI-compatible API. All UI text is in Chinese.
 
-一个适用于 **SillyTavern 1.12+** 的第三方前端扩展，使用你自配的 OpenAI 兼容接口检测角色卡、世界书与聊天中的 NTR 内容。全部界面文案为中文。
+一个适用于 **SillyTavern 1.12+** 的第三方前端扩展，既能**防止**也能**检测** NTR 内容：每次生成时静默注入内置的「纯爱规则」，并使用你自配的 OpenAI 兼容接口检测角色卡、世界书与聊天中的 NTR 内容。全部界面文案为中文。
+
+> The extension folder and repository are named `忒修斯神器`.
 
 ---
 
@@ -10,6 +12,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (ne
 
 ### Features
 
+- Built-in "pure love" rule (prevention): a hidden rule text is injected into every generation through SillyTavern's extension-prompt API, both after the story string (`IN_PROMPT`) and in-chat at depth 0. It is not shown in the UI and has no toggle. Nothing is written to your character cards or world info; disabling the extension or reloading the page removes it.
 - Per-field character card scan; per-entry world info scan; optional chat scan and realtime detection.
 - The current character card is detected automatically when it is opened or switched (on by default, can be disabled), so no manual scan is needed.
 - The panel can stay in the extensions settings page or be popped out into a draggable floating window whose position is remembered; a round launcher button minimizes it to a floating ball.
@@ -22,8 +25,8 @@ A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (ne
 
 ### Installation
 
-1. Copy the whole `ntr-detector` folder into `SillyTavern/public/scripts/extensions/third-party/`, so that the path `SillyTavern/public/scripts/extensions/third-party/ntr-detector/manifest.json` exists.
-2. Restart SillyTavern or refresh the browser, then enable "NTR 内容检测器" in the extensions panel.
+1. Copy the whole `忒修斯神器` folder into `SillyTavern/public/scripts/extensions/third-party/`, so that the path `SillyTavern/public/scripts/extensions/third-party/忒修斯神器/manifest.json` exists.
+2. Restart SillyTavern or refresh the browser, then enable "忒修斯神器" in the extensions panel.
 
 When installed as a Git repository (via SillyTavern's URL install), the extension updates automatically, because `manifest.json` sets `"auto_update": true`. This requires the machine running SillyTavern to be able to reach GitHub.
 
@@ -45,6 +48,7 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 
 ### 功能
 
+- 内置「纯爱规则」（防止）：通过酒馆的扩展提示词接口，把隐藏的规则文本注入每次生成，同时插入故事字符串之后（`IN_PROMPT`）与聊天内 depth 0 两处。规则不在界面展示，也没有开关；不会写入角色卡或世界书，关闭插件或刷新页面即失效。
 - 角色卡逐字段扫描；世界书逐条目扫描；聊天扫描与实时检测可选。
 - 打开或切换角色卡时自动检测该角色卡（默认开启，可关闭），无需手动点击扫描。
 - 面板可停留在扩展设置页，也可弹出为可拖动的浮窗（记住位置）；点「最小化为悬浮球」会收起成右下角圆形按钮。
@@ -57,8 +61,8 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 
 ### 安装
 
-1. 将整个 `ntr-detector` 文件夹复制到 `SillyTavern/public/scripts/extensions/third-party/`，形成 `SillyTavern/public/scripts/extensions/third-party/ntr-detector/manifest.json`。
-2. 重启 SillyTavern 或刷新浏览器，在扩展面板启用「NTR 内容检测器」。
+1. 将整个 `忒修斯神器` 文件夹复制到 `SillyTavern/public/scripts/extensions/third-party/`，形成 `SillyTavern/public/scripts/extensions/third-party/忒修斯神器/manifest.json`。
+2. 重启 SillyTavern 或刷新浏览器，在扩展面板启用「忒修斯神器」。
 
 当以 Git 仓库方式（酒馆的 URL 安装）安装时，扩展会自动更新，因为 `manifest.json` 中设置了 `"auto_update": true`。这要求运行 SillyTavern 的机器能访问 GitHub。
 
@@ -81,7 +85,7 @@ API Key 保存在 SillyTavern 的 `extension_settings['ntr-detector']` 中，可
 ## 目录结构 · Project layout
 
 ```text
-ntr-detector/
+忒修斯神器/
 ├── manifest.json
 ├── index.js
 ├── style.css
