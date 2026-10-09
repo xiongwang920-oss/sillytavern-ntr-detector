@@ -1,7 +1,7 @@
 {
   "name": "ntr-detector",
   "display_name": "NTR 内容检测器",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Codex",
   "description": "使用自配 OpenAI 兼容接口检测角色卡、世界书与聊天中的 NTR 内容。",
   "loading_order": 100,

@@ -12,11 +12,13 @@ A third-party front-end extension for **SillyTavern 1.12+** that detects NTR (ne
 
 - Per-field character card scan; per-entry world info scan; optional chat scan and realtime detection.
 - The current character card is detected automatically when it is opened or switched (on by default, can be disabled), so no manual scan is needed.
+- The panel can stay in the extensions settings page or be popped out into a draggable floating window whose position is remembered; a round launcher button minimizes it to a floating ball.
+- Greeting rewrite / erase: when a character card opening (`first_mes`) or alternate greeting (`alternate_greetings`) is flagged, a dialog lets you either strip the quoted evidence locally or rewrite the text with your model, review the result, and save it back to the character card.
 - Text is split into chunks by paragraph, pre-filtered locally by keywords, then sent to your model for strict JSON output. The pre-filter can be disabled.
 - Configurable concurrency, timeout, retries, and cancellation. The scan aborts automatically after 3 consecutive failures and keeps already-completed results.
 - The SHA-256 cache key includes text, model, endpoint, prompt, and related parameters; cached under `extension_settings['ntr-detector'].cache`.
 - Realtime detection listens to `MESSAGE_RECEIVED` and only inserts a warning bar into the message DOM; the original message is never modified.
-- Read-only: only character card, world info, and chat data are read. World info is read via SillyTavern's read-only `/api/worldinfo/get` endpoint; the "locate" button only manipulates the editor UI.
+- Read-only by default: detection only reads character card, world info, and chat data. World info is read via SillyTavern's read-only `/api/worldinfo/get` endpoint, and the "locate" button only manipulates the editor UI. The only write path is the greeting dialog, which calls `/api/characters/edit-attribute` only after you click "保存到角色卡" (save to character card).
 
 ### Installation
 
@@ -45,11 +47,13 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 
 - 角色卡逐字段扫描；世界书逐条目扫描；聊天扫描与实时检测可选。
 - 打开或切换角色卡时自动检测该角色卡（默认开启，可关闭），无需手动点击扫描。
+- 面板可停留在扩展设置页，也可弹出为可拖动的浮窗（记住位置）；点「最小化为悬浮球」会收起成右下角圆形按钮。
+- 开场白改写 / 抹除：当角色卡开场白（`first_mes`）或备用开场白（`alternate_greetings`）命中时，弹窗内可「抹除命中片段」（本地删除引用的原文）或用模型「AI 改写」，确认后再保存回角色卡。
 - 文本按段落切块，先用本地关键词粗筛，再向自配模型请求严格 JSON。可关闭粗筛。
 - 扫描并发、超时、重试与取消均可配置或控制。连续 3 项失败时自动中止，保留已完成结果。
 - SHA-256 缓存键包含文本、模型、接口地址、提示词和相关参数；缓存位于 `extension_settings['ntr-detector'].cache`。
 - 实时检测监听 `MESSAGE_RECEIVED`，仅在消息 DOM 下插入警告条，不改动原消息。
-- 只读取角色卡、世界书和聊天数据。世界书通过 SillyTavern 的只读 `/api/worldinfo/get` 接口读取；「定位」按钮只操作编辑器界面。
+- 默认只读：检测只读取角色卡、世界书和聊天数据。世界书通过 SillyTavern 的只读 `/api/worldinfo/get` 接口读取；「定位」按钮只操作编辑器界面。唯一的写入路径是开场白弹窗，且只在你点击「保存到角色卡」后才调用 `/api/characters/edit-attribute`。
 
 ### 安装
 

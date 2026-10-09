@@ -8,10 +8,12 @@ NTR（寝取られ / Netorare）指：存在稳定伴侣关系（恋人、夫妻
 以下情况不算 NTR：单纯后宫、双方知情同意的开放关系、没有既定伴侣关系的三角恋、仅口头调情未涉及背叛。
 只输出 JSON，不要输出任何其他内容：
 {"has_ntr": true 或 false, "confidence": 0 到 1 的数字, "categories": ["命中的类别"], "evidence": ["支撑判定的原文片段，直接引用"], "summary": "一句话中文说明"}`;
+const DEFAULT_REWRITE_PROMPT = `你是文本改写助手。用户会给你一段角色卡开场白。请在不改变人物、设定与整体剧情走向的前提下改写这段文字，删除或替换其中涉及 NTR（伴侣被第三者夺走、出轨、偷情、绿帽等）的内容，使其不再包含 NTR。
+要求：保持原有的叙事人称与语气；保持段落结构；不要添加解释、标题或前后缀；只输出改写后的正文。`;
 const DEFAULTS = {
     baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '', temperature: 0,
-    concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', skipPrefilter: false,
-    scanChat: false, realtime: false, autoCard: true, cache: {},
+    concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', rewritePrompt: '', skipPrefilter: false,
+    scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false, panelPos: null, cache: {},
 };
 const KEYWORDS = /ntr|netorare|netori|netorase|寝取(?:られ|り)?|绿帽|綠帽|绿奴|綠奴|戴绿|戴綠|被绿|被綠|出轨|出軌|偷情|劈腿|cuckold|cuckquean|cheating/i;
 const FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions'];
@@ -54,6 +56,7 @@ function currentConfig() {
         timeout: clamp(settings.timeout, 5, 300, 30) * 1000,
         chunkSize: clamp(settings.chunkSize, 200, 20000, 2000),
         prompt: settings.prompt.trim() || DEFAULT_PROMPT,
+        rewritePrompt: settings.rewritePrompt.trim() || DEFAULT_REWRITE_PROMPT,
         skipPrefilter: Boolean(settings.skipPrefilter),
     };
 }
@@ -183,14 +186,15 @@ function characterItems(context) {
     const card = context.characters?.[id];
     if (id === undefined || id === null || id === '' || !card) throw new Error('请先选择一张角色卡。');
     const items = [];
+    const meta = { avatar: card.avatar, characterName: card.name };
     for (const field of FIELDS) {
         const a = card[field], b = card.data?.[field];
-        addItem(items, '角色卡', LABELS[field], a);
-        if (b !== a) addItem(items, '角色卡', `V2 · ${LABELS[field]}`, b);
+        addItem(items, '角色卡', LABELS[field], a, { field, ...meta });
+        if (b !== a) addItem(items, '角色卡', `V2 · ${LABELS[field]}`, b, { field, ...meta });
     }
     for (const field of ['alternate_greetings', 'tags']) {
         for (const [source, list] of [['', card[field]], ['V2 · ', card.data?.[field]]]) {
-            if (Array.isArray(list)) list.forEach((value, i) => addItem(items, '角色卡', `${source}${LABELS[field]} ${i + 1}`, value));
+            if (Array.isArray(list)) list.forEach((value, i) => addItem(items, '角色卡', `${source}${LABELS[field]} ${i + 1}`, value, { field, index: i, ...meta }));
         }
     }
     return items;
@@ -258,7 +262,7 @@ function renderResults() {
             const d = result.decision;
             const details = el('details', d.has_ntr ? 'ntr-hit' : 'ntr-miss');
             details.open = d.has_ntr;
-            details.append(el('summary', '', `${result.title} · ${d.has_ntr ? '命中' : '未命中'}${result.cached ? ' · 缓存' : ''}`));
+            details.append(el('summary', '', `${result.title} · ${d.has_ntr ? '命中' : '未命中'}${result.cached ? ' · 缓存' : ''}${result.edited ? ' · 已修改' : ''}`));
             details.append(el('p', '', `置信度 ${(d.confidence * 100).toFixed(0)}% · 类别：${d.categories.join('、') || '无'}`));
             details.append(el('p', '', d.summary));
             renderEvidence(details, result.text, d.evidence);
@@ -266,6 +270,12 @@ function renderResults() {
                 const button = el('button', 'menu_button', '定位到该条目');
                 button.type = 'button';
                 button.addEventListener('click', () => locateWorldEntry(result.world, result.uid));
+                details.append(button);
+            }
+            if ((result.field === 'first_mes' || result.field === 'alternate_greetings') && d.has_ntr) {
+                const button = el('button', 'menu_button', '改写 / 抹除开场白');
+                button.type = 'button';
+                button.addEventListener('click', () => openGreetingEditor(result));
                 details.append(button);
             }
             section.append(details);
@@ -299,6 +309,114 @@ async function locateWorldEntry(name, uid) {
         try { $('#world_info_pagination').pagination('go', page + 1); } catch { break; }
     }
     note('已打开世界书，但当前筛选或分页未显示该条目。请清除编辑器筛选后查找。', 'warning');
+}
+// 只删除确实出现在原文中的命中片段，避免误删模型编造的引用。
+function stripEvidence(text, evidence) {
+    let output = text;
+    for (const quote of [...evidence].filter(x => x && output.includes(x)).sort((a, b) => b.length - a.length)) {
+        output = output.split(quote).join('');
+    }
+    // 删除片段后可能留下「。，」这类相邻标点，折叠为一个，避免读起来别扭。
+    return output
+        .replace(/([。，、；：,.])[。，、；：,.]*/g, '$1')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+async function requestRewrite(text, config, signal) {
+    const response = await fetch(config.url, {
+        method: 'POST', mode: 'cors', credentials: 'omit', redirect: 'error',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.key}` },
+        body: JSON.stringify({ model: config.model, temperature: config.temperature, stream: false,
+            messages: [{ role: 'system', content: config.rewritePrompt }, { role: 'user', content: text }] }),
+        signal,
+    });
+    if (response.status === 401 || response.status === 403) throw new Error('API Key 无效或模型权限不足（401/403）。');
+    if (!response.ok) throw new Error(`改写请求失败（HTTP ${response.status}）。`);
+    const body = await response.json();
+    const content = body?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) throw new Error('改写没有返回文本。');
+    return content.trim();
+}
+async function saveGreeting(result, newText) {
+    const context = getContext();
+    const card = context.characters?.[context.characterId];
+    if (!card || card.avatar !== result.avatar) throw new Error('当前角色卡已切换，无法保存。请重新检测后再改。');
+    let value = newText;
+    if (result.field === 'alternate_greetings') {
+        const list = [...(card.data?.alternate_greetings ?? card.alternate_greetings ?? [])];
+        if (!Array.isArray(list) || typeof result.index !== 'number' || result.index >= list.length) throw new Error('备用开场白索引无效，无法保存。');
+        list[result.index] = newText;
+        value = list;
+    }
+    const response = await fetch('/api/characters/edit-attribute', {
+        method: 'POST', headers: getRequestHeaders(), cache: 'no-cache',
+        body: JSON.stringify({ avatar_url: card.avatar, ch_name: card.name, field: result.field, value }),
+    });
+    if (!response.ok) throw new Error(`保存到角色卡失败（HTTP ${response.status}）。`);
+    if (result.field === 'alternate_greetings') {
+        if (Array.isArray(card.alternate_greetings)) card.alternate_greetings[result.index] = newText;
+        if (Array.isArray(card.data?.alternate_greetings)) card.data.alternate_greetings[result.index] = newText;
+    } else {
+        card[result.field] = newText;
+        if (card.data) card.data[result.field] = newText;
+    }
+}
+function openGreetingEditor(result) {
+    const evidence = Array.isArray(result.decision.evidence) ? result.decision.evidence : [];
+    const overlay = el('div', 'ntr-modal-backdrop');
+    const modal = el('div', 'ntr-modal');
+    const head = el('div', 'ntr-modal-head');
+    head.append(el('b', '', `改写开场白 · ${result.title}`));
+    const area = el('textarea', 'text_pole');
+    area.rows = 12;
+    area.value = result.text;
+    const actions = el('div', 'ntr-actions');
+    const erase = el('button', 'menu_button', '抹除命中片段');
+    const rewrite = el('button', 'menu_button', 'AI 改写');
+    const saveBtn = el('button', 'menu_button', '保存到角色卡');
+    const cancel = el('button', 'menu_button', '取消');
+    for (const button of [erase, rewrite, saveBtn, cancel]) button.type = 'button';
+    const status = el('div', 'ntr-modal-status', `字段：${LABELS[result.field] ?? result.field} · 命中片段 ${evidence.length} 条。修改前请先确认内容。`);
+    actions.append(erase, rewrite, saveBtn, cancel);
+    modal.append(head, area, actions, status);
+    overlay.append(modal);
+    document.body.append(overlay);
+    const close = () => overlay.remove();
+    cancel.addEventListener('click', close);
+    overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+    erase.addEventListener('click', () => {
+        const stripped = stripEvidence(area.value, evidence);
+        if (stripped === area.value.trim()) return status.textContent = '没有找到可抹除的命中片段，请改用 AI 改写。';
+        area.value = stripped;
+        status.textContent = '已抹除命中的原文片段，确认无误后再保存。';
+    });
+    rewrite.addEventListener('click', async () => {
+        let config;
+        try { config = currentConfig(); } catch (error) { return status.textContent = error.message; }
+        rewrite.disabled = true;
+        status.textContent = '正在请求模型改写…';
+        try {
+            area.value = await requestRewrite(area.value, config);
+            status.textContent = '改写完成，确认无误后再保存。';
+        } catch (error) { status.textContent = error.message; }
+        finally { rewrite.disabled = false; }
+    });
+    saveBtn.addEventListener('click', async () => {
+        const text = area.value.trim();
+        if (!text) return status.textContent = '内容不能为空。';
+        saveBtn.disabled = true;
+        status.textContent = '正在保存到角色卡…';
+        try {
+            await saveGreeting(result, text);
+            result.text = text;
+            result.edited = true;
+            renderResults();
+            note('已保存到角色卡；新建聊天时会使用修改后的开场白。', 'success');
+            close();
+        } catch (error) { status.textContent = error.message; }
+        finally { saveBtn.disabled = false; }
+    });
 }
 function setScanning(busy) {
     $('#ntr-scan').prop('disabled', busy);
@@ -430,7 +548,9 @@ async function onMessageReceived(id) {
 function buildUI() {
     const panel = el('div', 'ntr-panel'); panel.id = 'ntr-detector-panel';
     panel.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>NTR 内容检测器</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
-      <div class="inline-drawer-content"><p>检测只读取文本。命中结果仅供人工复核。</p>
+      <div class="inline-drawer-content">
+      <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button">浮窗显示</button><button id="ntr-minimize" class="menu_button" type="button">最小化为悬浮球</button></div>
+      <p>检测只读取文本。命中结果仅供人工复核。</p>
       <label>API Base URL<input id="ntr-url" class="text_pole" type="url" autocomplete="off"></label>
       <label>API Key<input id="ntr-key" class="text_pole" type="password" autocomplete="off"></label>
       <label>模型名称<input id="ntr-model" class="text_pole" type="text"></label>
@@ -439,6 +559,7 @@ function buildUI() {
       <label>超时（秒）<input id="ntr-timeout" class="text_pole" type="number" min="5" max="300"></label>
       <label>分块字符数<input id="ntr-chunk" class="text_pole" type="number" min="200" max="20000"></label></div>
       <label>自定义检测系统提示词（留空使用内置提示词）<textarea id="ntr-prompt" class="text_pole" rows="5"></textarea></label>
+      <label>自定义改写系统提示词（留空使用内置提示词）<textarea id="ntr-rewrite" class="text_pole" rows="4"></textarea></label>
       <label class="ntr-check"><input id="ntr-skip" type="checkbox">跳过关键词粗筛，全部送检</label>
       <label class="ntr-check"><input id="ntr-chat" type="checkbox">扫描当前聊天记录</label>
       <label class="ntr-check"><input id="ntr-realtime" type="checkbox">实时检测新 AI 回复</label>
@@ -450,8 +571,14 @@ function buildUI() {
       <progress id="ntr-progress" max="1" value="0"></progress><div id="ntr-progress-text">尚未扫描</div>
       <div class="ntr-actions"><button id="ntr-json" class="menu_button">导出 JSON</button><button id="ntr-md" class="menu_button">导出 Markdown</button></div>
       <div id="ntr-results"></div></div></div>`;
+    const floatBox = el('div', 'ntr-float ntr-hidden'); floatBox.id = 'ntr-float';
+    floatBox.append(el('div', 'ntr-float-body'));
+    const launcher = el('button', 'ntr-launcher ntr-hidden', 'NTR'); launcher.id = 'ntr-launcher'; launcher.type = 'button';
+    launcher.title = '打开 NTR 内容检测器浮窗';
+    document.body.append(floatBox, launcher);
+    // 先挂到文档中，保证下面的选择器能取到表单控件；浮窗模式稍后由 applyPanelMode 搬移。
     document.querySelector('#extensions_settings')?.append(panel);
-    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime', '#ntr-autocard': 'autoCard' };
+    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-rewrite': 'rewritePrompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime', '#ntr-autocard': 'autoCard' };
     for (const [selector, key] of Object.entries(map)) {
         const input = $(selector);
         input.prop('type') === 'checkbox' ? input.prop('checked', settings[key]) : input.val(settings[key]);
@@ -471,6 +598,75 @@ function buildUI() {
     });
     $('#ntr-world').on('focus', populateWorlds);
     populateWorlds();
+    $('#ntr-float-toggle').on('click', () => { settings.floatMode = !settings.floatMode; settings.minimized = false; save(); applyPanelMode(); });
+    $('#ntr-minimize').on('click', () => { settings.floatMode = true; settings.minimized = true; save(); applyPanelMode(); });
+    launcher.addEventListener('click', () => { settings.floatMode = true; settings.minimized = false; save(); applyPanelMode(); });
+    applyPanelMode();
+    initPanelDrag();
+}
+// 在「扩展设置页」与「可拖动浮窗」之间切换同一个面板，避免两份表单状态不同步。
+function applyPanelMode() {
+    const panel = document.getElementById('ntr-detector-panel');
+    const floatBox = document.getElementById('ntr-float');
+    const launcher = document.getElementById('ntr-launcher');
+    if (!panel || !floatBox || !launcher) return;
+    panel.classList.toggle('ntr-floating', Boolean(settings.floatMode));
+    $('#ntr-float-toggle').text(settings.floatMode ? '收回设置页' : '浮窗显示');
+    if (!settings.floatMode) {
+        document.querySelector('#extensions_settings')?.append(panel);
+        floatBox.classList.add('ntr-hidden');
+        launcher.classList.add('ntr-hidden');
+        return;
+    }
+    floatBox.querySelector('.ntr-float-body').append(panel);
+    const pos = settings.panelPos;
+    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+        floatBox.style.left = `${pos.left}px`; floatBox.style.top = `${pos.top}px`; floatBox.style.right = 'auto';
+    } else {
+        floatBox.style.left = 'auto'; floatBox.style.right = '20px'; floatBox.style.top = '80px';
+    }
+    floatBox.classList.toggle('ntr-hidden', Boolean(settings.minimized));
+    launcher.classList.toggle('ntr-hidden', !settings.minimized);
+    if (!settings.minimized) {
+        const content = panel.querySelector('.inline-drawer-content');
+        if (content && window.getComputedStyle(content).display === 'none') $(content).slideDown();
+    }
+}
+function initPanelDrag() {
+    const header = document.querySelector('#ntr-detector-panel .inline-drawer-header');
+    const floatBox = document.getElementById('ntr-float');
+    if (!header || !floatBox) return;
+    let dragging = false, moved = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+    header.addEventListener('pointerdown', event => {
+        if (!settings.floatMode || event.button !== 0 || event.target.closest('button')) return;
+        const rect = floatBox.getBoundingClientRect();
+        dragging = true; moved = false;
+        startX = event.clientX; startY = event.clientY; startLeft = rect.left; startTop = rect.top;
+        floatBox.style.right = 'auto'; floatBox.style.bottom = 'auto';
+        header.setPointerCapture?.(event.pointerId);
+    });
+    header.addEventListener('pointermove', event => {
+        if (!dragging) return;
+        const dx = event.clientX - startX, dy = event.clientY - startY;
+        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+        floatBox.style.left = `${Math.min(Math.max(0, startLeft + dx), window.innerWidth - 80)}px`;
+        floatBox.style.top = `${Math.min(Math.max(0, startTop + dy), window.innerHeight - 40)}px`;
+    });
+    const end = () => {
+        if (!dragging) return;
+        dragging = false;
+        const rect = floatBox.getBoundingClientRect();
+        settings.panelPos = { left: Math.round(rect.left), top: Math.round(rect.top) };
+        save();
+    };
+    header.addEventListener('pointerup', end);
+    header.addEventListener('pointercancel', end);
+    // 拖动结束后拦截这一次点击，避免误触发展开/收起。
+    document.addEventListener('click', event => {
+        if (moved && event.target.closest?.('#ntr-detector-panel .inline-drawer-header')) {
+            event.stopPropagation(); event.preventDefault(); moved = false;
+        }
+    }, true);
 }
 function populateWorlds() {
     const select = $('#ntr-world');
