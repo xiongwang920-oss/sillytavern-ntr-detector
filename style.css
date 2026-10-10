@@ -369,7 +369,7 @@
 .ntr-hidden { display: none !important; }
 
 /* ============================================================
-   悬浮窗（固定位置，不可拖动）
+   悬浮窗（可拖动，位置会被记住）
    ============================================================ */
 .ntr-float {
     position: fixed;
@@ -406,6 +406,25 @@
 .ntr-float .ntr-float-body { overflow-y: auto; padding: 6px 4px 8px; scrollbar-width: thin; }
 .ntr-float #ntr-detector-panel { padding: 0 6px 6px; }
 
+/* 拖动把手：浮窗模式下按住标题栏即可移动整个浮窗 */
+#ntr-detector-panel .inline-drawer-header .ntr-grip { display: none; }
+.ntr-float #ntr-detector-panel .inline-drawer-header {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.ntr-float #ntr-detector-panel .inline-drawer-header.ntr-dragging { cursor: grabbing; }
+.ntr-float #ntr-detector-panel .inline-drawer-header .ntr-grip {
+    display: inline-block;
+    margin-left: auto;
+    font-size: .84em;
+    opacity: .45;
+    transition: opacity .2s var(--ntr-ease);
+}
+.ntr-float #ntr-detector-panel .inline-drawer-header:hover .ntr-grip { opacity: .9; }
+.ntr-float #ntr-detector-panel .inline-drawer-header .inline-drawer-icon { margin-left: 8px; }
+
 /* 悬浮球 */
 .ntr-launcher {
     position: fixed;
@@ -418,7 +437,8 @@
     border-radius: 50%;
     border: 1px solid rgba(224, 179, 82, .5);
     background: radial-gradient(80% 80% at 35% 25%, #3d2c14, #14100a 75%);
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
     overflow: visible;
     animation: ntr-bob 4.5s ease-in-out infinite, ntr-halo 3.4s ease-out infinite;
     transition: transform .2s var(--ntr-ease), filter .2s var(--ntr-ease);
@@ -426,6 +446,7 @@
 .ntr-launcher .ntr-emblem-svg { width: 100%; height: 100%; border-radius: 50%; display: block; }
 .ntr-launcher:hover { transform: scale(1.09); filter: brightness(1.12); animation-play-state: paused; }
 .ntr-launcher:active { transform: scale(.96); }
+.ntr-launcher.ntr-dragging { cursor: grabbing; transform: scale(1.04); animation-play-state: paused; }
 
 /* ============================================================
    改写弹窗
@@ -595,7 +616,8 @@
 
 @media (max-width: 480px) {
     #ntr-detector-panel .ntr-grid { grid-template-columns: minmax(0, 1fr); }
-    .ntr-float { top: 64px; right: 8px; left: 8px; width: auto; }
+    /* 不用 left/right 撑宽度：拖动后位置由 JS 写成 left，宽度改由 width 决定 */
+    .ntr-float { top: 64px; right: 8px; width: min(428px, calc(100vw - 16px)); }
     .ntr-launcher { right: 14px; bottom: 14px; }
     .ntr-tag { display: none; }
 }

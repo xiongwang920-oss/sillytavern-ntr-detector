@@ -51,7 +51,8 @@ const PURE_LOVE_ENFORCER = `<纯爱规则>
 const DEFAULTS = {
     baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '', temperature: 0,
     concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', rewritePrompt: '', skipPrefilter: false,
-    scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false, cache: {},
+    scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false,
+    floatX: null, floatY: null, launcherX: null, launcherY: null, cache: {},
 };
 const KEYWORDS = /ntr|netorare|netori|netorase|寝取(?:られ|り)?|绿帽|綠帽|绿奴|綠奴|戴绿|戴綠|被绿|被綠|出轨|出軌|偷情|劈腿|cuckold|cuckquean|cheating/i;
 const FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions'];
@@ -895,9 +896,115 @@ function buildUI() {
     $('#ntr-float-toggle').on('click', () => { settings.floatMode = !settings.floatMode; settings.minimized = false; save(); applyPanelMode(); });
     $('#ntr-minimize').on('click', () => { settings.floatMode = true; settings.minimized = true; save(); applyPanelMode(); });
     launcher.addEventListener('click', () => { settings.floatMode = true; settings.minimized = false; save(); applyPanelMode(); });
+    // 浮窗按住标题栏拖动，悬浮球直接按住拖动；松手后的位置记进设置，下次打开还在原处。
+    const titleBar = panel.querySelector('.inline-drawer-header');
+    const titleGrip = el('i', 'fa-solid fa-grip-lines ntr-grip');
+    titleGrip.title = '按住标题栏可拖动浮窗';
+    titleBar?.querySelector('.inline-drawer-icon')?.before(titleGrip);
+    attachDrag(titleBar, () => (settings.floatMode && !settings.minimized ? document.getElementById('ntr-float') : null), setFloatPosition);
+    attachDrag(launcher, () => (settings.minimized ? document.getElementById('ntr-launcher') : null), setLauncherPosition);
+    // 浏览器窗口尺寸变化后把浮窗拉回可见范围
+    window.addEventListener('resize', () => {
+        if (!settings.floatMode) return;
+        if (settings.minimized) {
+            if (Number.isFinite(settings.launcherX)) setLauncherPosition(settings.launcherX, settings.launcherY, true);
+        } else if (Number.isFinite(settings.floatX)) {
+            setFloatPosition(settings.floatX, settings.floatY, true);
+        }
+    });
     applyPanelMode();
 }
-// 在「扩展设置页」与「固定浮窗」之间切换同一个面板，避免两份表单状态不同步。
+// ——— 浮窗 / 悬浮球拖动 ———
+// 位置可以随便放，但至少留一点在视口里，免得拖出去就再也找不回来。
+function clampToViewport(x, y, width, height, keep = 60) {
+    const maxX = Math.max(0, window.innerWidth - keep);
+    const maxY = Math.max(0, window.innerHeight - keep);
+    const minX = Math.min(0, keep - width);
+    const minY = Math.min(0, keep - height);
+    return [
+        Math.round(Math.min(Math.max(x, minX), maxX)),
+        Math.round(Math.min(Math.max(y, minY), maxY)),
+    ];
+}
+function setFloatPosition(x, y, persist = false) {
+    const floatBox = document.getElementById('ntr-float');
+    if (!floatBox) return;
+    const rect = floatBox.getBoundingClientRect();
+    const [nx, ny] = clampToViewport(x, y, rect.width || 428, rect.height || 420);
+    floatBox.style.left = `${nx}px`;
+    floatBox.style.top = `${ny}px`;
+    floatBox.style.right = 'auto';
+    if (persist) { settings.floatX = nx; settings.floatY = ny; save(); }
+}
+function setLauncherPosition(x, y, persist = false) {
+    const launcher = document.getElementById('ntr-launcher');
+    if (!launcher) return;
+    const size = launcher.offsetWidth || 58;
+    const [nx, ny] = clampToViewport(x, y, size, size, 30);
+    launcher.style.left = `${nx}px`;
+    launcher.style.top = `${ny}px`;
+    launcher.style.right = 'auto';
+    launcher.style.bottom = 'auto';
+    if (persist) { settings.launcherX = nx; settings.launcherY = ny; save(); }
+}
+// 拖动结束后紧跟的这一次 click 要吞掉，否则松手时会顺带把抽屉收起／重新打开。
+let suppressNextClick = false;
+window.addEventListener('click', event => {
+    if (!suppressNextClick) return;
+    suppressNextClick = false;
+    event.stopPropagation();
+    event.preventDefault();
+}, true);
+// 通用拖动：按住 handle 移动 target，松手时把最终位置写进设置。
+function attachDrag(handle, target, apply) {
+    if (!handle) return;
+    let dragging = false;
+    let moved = false;
+    let fromX = 0;
+    let fromY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let lastLeft = 0;
+    let lastTop = 0;
+    handle.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (event.target.closest('button, a, input, select, textarea')) return;
+        const node = target();
+        if (!node) return;
+        const rect = node.getBoundingClientRect();
+        dragging = true;
+        moved = false;
+        fromX = event.clientX;
+        fromY = event.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        handle.classList.add('ntr-dragging');
+        try { handle.setPointerCapture(event.pointerId); } catch { /* 忽略不支持的浏览器 */ }
+    });
+    handle.addEventListener('pointermove', event => {
+        if (!dragging) return;
+        const dx = event.clientX - fromX;
+        const dy = event.clientY - fromY;
+        if (!moved && Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+        lastLeft = startLeft + dx;
+        lastTop = startTop + dy;
+        apply(lastLeft, lastTop, false);
+    });
+    const stop = event => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('ntr-dragging');
+        try { handle.releasePointerCapture(event.pointerId); } catch { /* 忽略 */ }
+        // 落盘用拖动过程中算出的目标值，不要再读一次 rect：
+        // 入场动画等 transform 会让 rect 和 style 差十几像素，读 rect 会在松手瞬间跳一下。
+        if (moved) apply(lastLeft, lastTop, true);
+        suppressNextClick = moved;
+        if (moved) setTimeout(() => { suppressNextClick = false; }, 400);
+    };
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+}
+// 在「扩展设置页」与「可拖动浮窗」之间切换同一个面板，避免两份表单状态不同步。
 function applyPanelMode() {
     const panel = document.getElementById('ntr-detector-panel');
     const floatBox = document.getElementById('ntr-float');
@@ -914,7 +1021,11 @@ function applyPanelMode() {
     floatBox.querySelector('.ntr-float-body').append(panel);
     floatBox.classList.toggle('ntr-hidden', Boolean(settings.minimized));
     launcher.classList.toggle('ntr-hidden', !settings.minimized);
-    if (!settings.minimized) {
+    if (settings.minimized) {
+        if (Number.isFinite(settings.launcherX) && Number.isFinite(settings.launcherY)) setLauncherPosition(settings.launcherX, settings.launcherY, false);
+    } else {
+        // 回到上次拖到的位置
+        if (Number.isFinite(settings.floatX) && Number.isFinite(settings.floatY)) setFloatPosition(settings.floatX, settings.floatY, false);
         const content = panel.querySelector('.inline-drawer-content');
         if (content && window.getComputedStyle(content).display === 'none') $(content).slideDown();
     }
