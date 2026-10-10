@@ -1,7 +1,7 @@
 {
   "name": "忒修斯神器",
   "display_name": "忒修斯神器",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Codex",
   "description": "检测并防止角色扮演中的 NTR 内容：内置隐藏的纯爱规则注入，自动检测角色卡、世界书与聊天，可改写或抹除命中的开场白。",
   "loading_order": 100,

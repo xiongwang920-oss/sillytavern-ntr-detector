@@ -51,7 +51,7 @@ const PURE_LOVE_ENFORCER = `<纯爱规则>
 const DEFAULTS = {
     baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '', temperature: 0,
     concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', rewritePrompt: '', skipPrefilter: false,
-    scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false, panelPos: null, cache: {},
+    scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false, cache: {},
 };
 const KEYWORDS = /ntr|netorare|netori|netorase|寝取(?:られ|り)?|绿帽|綠帽|绿奴|綠奴|戴绿|戴綠|被绿|被綠|出轨|出軌|偷情|劈腿|cuckold|cuckquean|cheating/i;
 const FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions'];
@@ -70,6 +70,43 @@ function el(tag, className = '', content = '') {
     node.className = className;
     node.textContent = content;
     return node;
+}
+// 忒修斯斩杀牛头：握着剑的手贯穿牛首。prefix 用于避免同一页面多个实例的渐变 id 冲突。
+function emblemSVG(prefix) {
+    const p = `ntr-${prefix}`;
+    return `<svg class="ntr-emblem-svg" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+<defs>
+<radialGradient id="${p}-bg" cx="35%" cy="22%" r="88%"><stop offset="0" stop-color="#3d2c14"/><stop offset=".55" stop-color="#1e160a"/><stop offset="1" stop-color="#0c0805"/></radialGradient>
+<linearGradient id="${p}-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffeeb4"/><stop offset=".45" stop-color="#e0b352"/><stop offset="1" stop-color="#8a6020"/></linearGradient>
+<linearGradient id="${p}-blade" x1=".1" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".4" stop-color="#e8f1ff"/><stop offset="1" stop-color="#8fa5cc"/></linearGradient>
+<linearGradient id="${p}-gold" x1="0" y1="0" x2=".25" y2="1"><stop offset="0" stop-color="#f9dd99"/><stop offset="1" stop-color="#a8781f"/></linearGradient>
+<linearGradient id="${p}-guard" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9973c"/><stop offset="1" stop-color="#7d5716"/></linearGradient>
+<linearGradient id="${p}-horn" x1="0" y1="1" x2=".6" y2="0"><stop offset="0" stop-color="#b98c34"/><stop offset="1" stop-color="#f7e2ad"/></linearGradient>
+<linearGradient id="${p}-skin" x1=".1" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#f5e0b6"/><stop offset="1" stop-color="#c39c57"/></linearGradient>
+</defs>
+<circle cx="32" cy="32" r="30" fill="url(#${p}-bg)"/>
+<circle cx="32" cy="32" r="28.9" fill="none" stroke="url(#${p}-ring)" stroke-width="2.2"/>
+<circle cx="32" cy="32" r="25.4" fill="none" stroke="#e0b352" stroke-width=".5" opacity=".35"/>
+<g fill="url(#${p}-horn)"><path d="M24,32 C12,31 3,23 3,11 C7,20 16,26 26,23 Z"/><path d="M40,32 C52,31 61,23 61,11 C57,20 48,26 38,23 Z"/></g>
+<path d="M20,28 C26,23 38,23 44,28 L44,42 C44,50 38,55.5 32,55.5 C26,55.5 20,50 20,42 Z" fill="url(#${p}-gold)" stroke="#1d1405" stroke-width="1.1"/>
+<g fill="#160e05"><path d="M23.5,30.6 L29.2,33.4 L23.5,34.6 Z"/><path d="M40.5,30.6 L34.8,33.4 L40.5,34.6 Z"/><ellipse cx="32" cy="47" rx="6.6" ry="4.2" opacity=".55"/><circle cx="29" cy="47" r="1.15"/><circle cx="35" cy="47" r="1.15"/></g>
+<path d="M32,17.5 L35.8,24.5 L34.2,44 L32,56.5 L29.8,44 L28.2,24.5 Z" fill="url(#${p}-blade)"/>
+<path d="M32,20 L32,50" stroke="#ffffff" stroke-width=".8" opacity=".5" stroke-linecap="round"/>
+<rect x="20" y="15.2" width="24" height="4.4" rx="2.2" fill="url(#${p}-guard)" stroke="#1d1405" stroke-width="1.1"/>
+<path d="M20.9,16.2 C19.7,15.2 19.3,13.6 19.3,11.4 L19.3,7.9 C19.3,5.3 21.2,3.4 23.8,3.4 L37.6,3.4 C39.1,3.4 40.1,4.6 40.1,6.4 L40.1,12.9 C40.1,14.9 39,16.2 37.3,16.2 Z" fill="url(#${p}-skin)" stroke="#1d1405" stroke-width="1.35" stroke-linejoin="round"/>
+<g stroke="#1d1405" stroke-width="1.45" stroke-linecap="round">
+<path d="M26.3,6.6 C26.1,9.6 26.1,12.4 26.3,15.1"/>
+<path d="M32,6.4 C31.8,9.6 31.8,12.4 32,15.1"/>
+<path d="M37.5,6.8 C37.3,9.7 37.3,12.3 37.5,14.9"/>
+</g>
+<g fill="url(#${p}-skin)" stroke="#1d1405" stroke-width="1.35" stroke-linejoin="round">
+<path d="M23.7,3.5 C23.7,1.9 25.5,1.4 26.4,2.9 C27.3,1.4 29.1,1.9 29.1,3.5 Z"/>
+<path d="M29.1,3.5 C29.1,1.9 30.9,1.4 31.8,2.9 C32.7,1.4 34.5,1.9 34.5,3.5 Z"/>
+<path d="M34.5,3.5 C34.5,1.9 36.3,1.5 37.2,2.9 C38,2.4 38.3,2.9 38.3,3.5 Z"/>
+</g>
+<path d="M20.4,12.6 C21,10.9 23.4,9.6 26.8,9.6 C29.8,9.7 31.8,10.6 31.6,12.2 C31.4,13.9 28.8,15.3 25.6,15.2 C22.6,15.1 20.7,14 20.4,13 Z" fill="url(#${p}-skin)" stroke="#1d1405" stroke-width="1.35" stroke-linejoin="round"/>
+<path d="M24.6,10.1 C23.2,10.6 22.1,11.4 21.3,12.4" stroke="#9c7730" stroke-width="1" opacity=".6" fill="none" stroke-linecap="round"/>
+</svg>`;
 }
 function note(message, type = 'info') {
     if (window.toastr?.[type]) window.toastr[type](message, '忒修斯神器');
@@ -302,23 +339,26 @@ function renderResults() {
         if (!results.length) continue;
         const section = el('section');
         section.append(el('h4', '', `${group} · 命中 ${results.filter(x => x.decision.has_ntr).length}/${results.length}`));
-        for (const result of results) {
+        for (const [index, result] of results.entries()) {
             const d = result.decision;
             const details = el('details', d.has_ntr ? 'ntr-hit' : 'ntr-miss');
             details.open = d.has_ntr;
+            details.style.animationDelay = `${Math.min(index, 12) * 45}ms`;
             details.append(el('summary', '', `${result.title} · ${d.has_ntr ? '命中' : '未命中'}${result.cached ? ' · 缓存' : ''}${result.edited ? ' · 已修改' : ''}`));
             details.append(el('p', '', `置信度 ${(d.confidence * 100).toFixed(0)}% · 类别：${d.categories.join('、') || '无'}`));
             details.append(el('p', '', d.summary));
             renderEvidence(details, result.text, d.evidence);
             if (result.world && d.has_ntr) {
-                const button = el('button', 'menu_button', '定位到该条目');
+                const button = el('button', 'menu_button');
                 button.type = 'button';
+                button.innerHTML = '<i class="fa-solid fa-crosshairs"></i>定位到该条目';
                 button.addEventListener('click', () => locateWorldEntry(result.world, result.uid));
                 details.append(button);
             }
             if ((result.field === 'first_mes' || result.field === 'alternate_greetings') && d.has_ntr) {
-                const button = el('button', 'menu_button', '改写 / 抹除开场白');
+                const button = el('button', 'menu_button ntr-primary');
                 button.type = 'button';
+                button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>改写 / 抹除开场白';
                 button.addEventListener('click', () => openGreetingEditor(result));
                 details.append(button);
             }
@@ -411,15 +451,20 @@ function openGreetingEditor(result) {
     const overlay = el('div', 'ntr-modal-backdrop');
     const modal = el('div', 'ntr-modal');
     const head = el('div', 'ntr-modal-head');
+    head.innerHTML = `<span class="ntr-emblem">${emblemSVG('modal')}</span>`;
     head.append(el('b', '', `改写开场白 · ${result.title}`));
     const area = el('textarea', 'text_pole');
     area.rows = 12;
     area.value = result.text;
     const actions = el('div', 'ntr-actions');
-    const erase = el('button', 'menu_button', '抹除命中片段');
-    const rewrite = el('button', 'menu_button', 'AI 改写');
-    const saveBtn = el('button', 'menu_button', '保存到角色卡');
-    const cancel = el('button', 'menu_button', '取消');
+    const erase = el('button', 'menu_button');
+    erase.innerHTML = '<i class="fa-solid fa-eraser"></i>抹除命中片段';
+    const rewrite = el('button', 'menu_button');
+    rewrite.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>AI 改写';
+    const saveBtn = el('button', 'menu_button ntr-primary');
+    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>保存到角色卡';
+    const cancel = el('button', 'menu_button');
+    cancel.innerHTML = '<i class="fa-solid fa-xmark"></i>取消';
     for (const button of [erase, rewrite, saveBtn, cancel]) button.type = 'button';
     const status = el('div', 'ntr-modal-status', `字段：${LABELS[result.field] ?? result.field} · 命中片段 ${evidence.length} 条。修改前请先确认内容。`);
     actions.append(erase, rewrite, saveBtn, cancel);
@@ -463,8 +508,9 @@ function openGreetingEditor(result) {
     });
 }
 function setScanning(busy) {
-    $('#ntr-scan').prop('disabled', busy);
+    $('#ntr-scan').prop('disabled', busy).toggleClass('ntr-busy', busy);
     $('#ntr-cancel').prop('disabled', !busy);
+    $('#ntr-progress-text').toggleClass('ntr-scanning', busy);
 }
 async function executeScan(items, config, controller) {
     report = { scannedAt: new Date().toISOString(), model: config.model, total: items.length, cancelled: false, results: [], errors: [] };
@@ -591,10 +637,11 @@ async function onMessageReceived(id) {
 }
 function buildUI() {
     const panel = el('div', 'ntr-panel'); panel.id = 'ntr-detector-panel';
-    panel.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><b>忒修斯神器</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+    panel.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><span class="ntr-emblem">${emblemSVG('title')}</span><b>忒修斯神器</b><span class="ntr-tag">纯爱守护</span><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
       <div class="inline-drawer-content">
-      <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button">浮窗显示</button><button id="ntr-minimize" class="menu_button" type="button">最小化为悬浮球</button></div>
-      <p>检测只读取文本。命中结果仅供人工复核。</p>
+      <div class="ntr-hero"><span class="ntr-emblem">${emblemSVG('hero')}</span><div class="ntr-hero-text"><div class="ntr-hero-title">斩杀牛头 · 守护纯爱</div><div class="ntr-hero-sub">内置纯爱规则已在后台静默注入，检测只读取文本，命中结果仅供人工复核。</div></div><span class="ntr-status">守护中</span></div>
+      <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button"><i class="fa-solid fa-window-restore"></i><span class="ntr-btn-label">浮窗显示</span></button><button id="ntr-minimize" class="menu_button" type="button"><i class="fa-solid fa-circle-dot"></i>最小化为悬浮球</button></div>
+      <section class="ntr-card"><h4><i class="fa-solid fa-plug"></i>模型接口</h4>
       <label>API Base URL<input id="ntr-url" class="text_pole" type="url" autocomplete="off"></label>
       <label>API Key<input id="ntr-key" class="text_pole" type="password" autocomplete="off"></label>
       <label>模型名称<input id="ntr-model" class="text_pole" type="text"></label>
@@ -602,23 +649,32 @@ function buildUI() {
       <label>最大并发数<input id="ntr-concurrency" class="text_pole" type="number" min="1" max="10"></label>
       <label>超时（秒）<input id="ntr-timeout" class="text_pole" type="number" min="5" max="300"></label>
       <label>分块字符数<input id="ntr-chunk" class="text_pole" type="number" min="200" max="20000"></label></div>
+      <div class="ntr-actions"><button id="ntr-test" class="menu_button"><i class="fa-solid fa-satellite-dish"></i>测试连接</button><button id="ntr-clear" class="menu_button"><i class="fa-solid fa-broom"></i>清除缓存</button></div>
+      </section>
+      <section class="ntr-card"><h4><i class="fa-solid fa-comment-dots"></i>提示词</h4>
       <label>自定义检测系统提示词（留空使用内置提示词）<textarea id="ntr-prompt" class="text_pole" rows="5"></textarea></label>
       <label>自定义改写系统提示词（留空使用内置提示词）<textarea id="ntr-rewrite" class="text_pole" rows="4"></textarea></label>
       <label class="ntr-check"><input id="ntr-skip" type="checkbox">跳过关键词粗筛，全部送检</label>
+      </section>
+      <section class="ntr-card"><h4><i class="fa-solid fa-bell"></i>检测行为</h4>
       <label class="ntr-check"><input id="ntr-chat" type="checkbox">扫描当前聊天记录</label>
       <label class="ntr-check"><input id="ntr-realtime" type="checkbox">实时检测新 AI 回复</label>
       <label class="ntr-check"><input id="ntr-autocard" type="checkbox">打开角色卡时自动检测（无需手动扫描）</label>
-      <div class="ntr-actions"><button id="ntr-test" class="menu_button">测试连接</button><button id="ntr-clear" class="menu_button">清除缓存</button></div>
-      <hr><label class="ntr-check"><input id="ntr-card" type="checkbox" checked>扫描当前角色卡</label>
+      </section>
+      <section class="ntr-card"><h4><i class="fa-solid fa-crosshairs"></i>扫描与结果</h4>
+      <label class="ntr-check"><input id="ntr-card" type="checkbox" checked>扫描当前角色卡</label>
       <label>世界书<select id="ntr-world" class="text_pole"><option value="">不扫描世界书</option><option value="__bound__">当前角色绑定的世界书（主 + 附加）</option></select></label>
-      <div class="ntr-actions"><button id="ntr-scan" class="menu_button">开始扫描</button><button id="ntr-cancel" class="menu_button" disabled>取消扫描</button></div>
+      <div class="ntr-actions"><button id="ntr-scan" class="menu_button"><i class="fa-solid fa-magnifying-glass"></i>开始扫描</button><button id="ntr-cancel" class="menu_button" disabled><i class="fa-solid fa-ban"></i>取消扫描</button></div>
       <progress id="ntr-progress" max="1" value="0"></progress><div id="ntr-progress-text">尚未扫描</div>
-      <div class="ntr-actions"><button id="ntr-json" class="menu_button">导出 JSON</button><button id="ntr-md" class="menu_button">导出 Markdown</button></div>
-      <div id="ntr-results"></div></div></div>`;
+      <div class="ntr-actions"><button id="ntr-json" class="menu_button"><i class="fa-solid fa-file-code"></i>导出 JSON</button><button id="ntr-md" class="menu_button"><i class="fa-solid fa-file-lines"></i>导出 Markdown</button></div>
+      <div id="ntr-results"></div>
+      </section></div></div>`;
     const floatBox = el('div', 'ntr-float ntr-hidden'); floatBox.id = 'ntr-float';
     floatBox.append(el('div', 'ntr-float-body'));
-    const launcher = el('button', 'ntr-launcher ntr-hidden', '忒'); launcher.id = 'ntr-launcher'; launcher.type = 'button';
+    const launcher = el('button', 'ntr-launcher ntr-hidden'); launcher.id = 'ntr-launcher'; launcher.type = 'button';
     launcher.title = '打开忒修斯神器浮窗';
+    launcher.setAttribute('aria-label', '打开忒修斯神器浮窗');
+    launcher.innerHTML = emblemSVG('launcher');
     document.body.append(floatBox, launcher);
     // 先挂到文档中，保证下面的选择器能取到表单控件；浮窗模式稍后由 applyPanelMode 搬移。
     document.querySelector('#extensions_settings')?.append(panel);
@@ -646,16 +702,15 @@ function buildUI() {
     $('#ntr-minimize').on('click', () => { settings.floatMode = true; settings.minimized = true; save(); applyPanelMode(); });
     launcher.addEventListener('click', () => { settings.floatMode = true; settings.minimized = false; save(); applyPanelMode(); });
     applyPanelMode();
-    initPanelDrag();
 }
-// 在「扩展设置页」与「可拖动浮窗」之间切换同一个面板，避免两份表单状态不同步。
+// 在「扩展设置页」与「固定浮窗」之间切换同一个面板，避免两份表单状态不同步。
 function applyPanelMode() {
     const panel = document.getElementById('ntr-detector-panel');
     const floatBox = document.getElementById('ntr-float');
     const launcher = document.getElementById('ntr-launcher');
     if (!panel || !floatBox || !launcher) return;
     panel.classList.toggle('ntr-floating', Boolean(settings.floatMode));
-    $('#ntr-float-toggle').text(settings.floatMode ? '收回设置页' : '浮窗显示');
+    $('#ntr-float-toggle .ntr-btn-label').text(settings.floatMode ? '收回设置页' : '浮窗显示');
     if (!settings.floatMode) {
         document.querySelector('#extensions_settings')?.append(panel);
         floatBox.classList.add('ntr-hidden');
@@ -663,54 +718,12 @@ function applyPanelMode() {
         return;
     }
     floatBox.querySelector('.ntr-float-body').append(panel);
-    const pos = settings.panelPos;
-    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
-        floatBox.style.left = `${pos.left}px`; floatBox.style.top = `${pos.top}px`; floatBox.style.right = 'auto';
-    } else {
-        floatBox.style.left = 'auto'; floatBox.style.right = '20px'; floatBox.style.top = '80px';
-    }
     floatBox.classList.toggle('ntr-hidden', Boolean(settings.minimized));
     launcher.classList.toggle('ntr-hidden', !settings.minimized);
     if (!settings.minimized) {
         const content = panel.querySelector('.inline-drawer-content');
         if (content && window.getComputedStyle(content).display === 'none') $(content).slideDown();
     }
-}
-function initPanelDrag() {
-    const header = document.querySelector('#ntr-detector-panel .inline-drawer-header');
-    const floatBox = document.getElementById('ntr-float');
-    if (!header || !floatBox) return;
-    let dragging = false, moved = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
-    header.addEventListener('pointerdown', event => {
-        if (!settings.floatMode || event.button !== 0 || event.target.closest('button')) return;
-        const rect = floatBox.getBoundingClientRect();
-        dragging = true; moved = false;
-        startX = event.clientX; startY = event.clientY; startLeft = rect.left; startTop = rect.top;
-        floatBox.style.right = 'auto'; floatBox.style.bottom = 'auto';
-        header.setPointerCapture?.(event.pointerId);
-    });
-    header.addEventListener('pointermove', event => {
-        if (!dragging) return;
-        const dx = event.clientX - startX, dy = event.clientY - startY;
-        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-        floatBox.style.left = `${Math.min(Math.max(0, startLeft + dx), window.innerWidth - 80)}px`;
-        floatBox.style.top = `${Math.min(Math.max(0, startTop + dy), window.innerHeight - 40)}px`;
-    });
-    const end = () => {
-        if (!dragging) return;
-        dragging = false;
-        const rect = floatBox.getBoundingClientRect();
-        settings.panelPos = { left: Math.round(rect.left), top: Math.round(rect.top) };
-        save();
-    };
-    header.addEventListener('pointerup', end);
-    header.addEventListener('pointercancel', end);
-    // 拖动结束后拦截这一次点击，避免误触发展开/收起。
-    document.addEventListener('click', event => {
-        if (moved && event.target.closest?.('#ntr-detector-panel .inline-drawer-header')) {
-            event.stopPropagation(); event.preventDefault(); moved = false;
-        }
-    }, true);
 }
 function populateWorlds() {
     const select = $('#ntr-world');

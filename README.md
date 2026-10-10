@@ -4,7 +4,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 
 一个适用于 **SillyTavern 1.12+** 的第三方前端扩展，既能**防止**也能**检测** NTR 内容：每次生成时静默注入内置的「纯爱规则」，并使用你自配的 OpenAI 兼容接口检测角色卡、世界书与聊天中的 NTR 内容。全部界面文案为中文。
 
-> The extension folder and repository are named `忒修斯神器`.
+> The extension folder is named `忒修斯神器`; because GitHub rejects non-ASCII repository names, the repository itself is named `theseus-artifact`.
 
 ---
 
@@ -15,7 +15,8 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 - Built-in "pure love" rule (prevention): a hidden rule text is injected into every generation through SillyTavern's extension-prompt API, both after the story string (`IN_PROMPT`) and in-chat at depth 0. It is not shown in the UI and has no toggle. Nothing is written to your character cards or world info; disabling the extension or reloading the page removes it.
 - Per-field character card scan; per-entry world info scan; optional chat scan and realtime detection.
 - The current character card is detected automatically when it is opened or switched (on by default, can be disabled), so no manual scan is needed.
-- The panel can stay in the extensions settings page or be popped out into a draggable floating window whose position is remembered; a round launcher button minimizes it to a floating ball.
+- The panel can stay in the extensions settings page or be popped out into a fixed floating window pinned to the top-right corner; a round floating-ball button minimizes it. Neither the window nor the ball can be dragged, so the layout never shifts.
+- Gold-on-dark theme with motion: animated progress stripes, floating launcher with a pulsing halo, staggered result cards, pulsing highlights on hits, and hover sheen on buttons. The launcher and panel header use a hand-drawn SVG emblem of Theseus driving a sword through the Minotaur's head. All animation is disabled automatically for users who prefer reduced motion.
 - Greeting rewrite / erase: when a character card opening (`first_mes`) or alternate greeting (`alternate_greetings`) is flagged, a dialog lets you either strip the quoted evidence locally or rewrite the text with your model, review the result, and save it back to the character card.
 - Text is split into chunks by paragraph, pre-filtered locally by keywords, then sent to your model for strict JSON output. The pre-filter can be disabled.
 - Configurable concurrency, timeout, retries, and cancellation. The scan aborts automatically after 3 consecutive failures and keeps already-completed results.
@@ -28,7 +29,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 1. Copy the whole `忒修斯神器` folder into `SillyTavern/public/scripts/extensions/third-party/`, so that the path `SillyTavern/public/scripts/extensions/third-party/忒修斯神器/manifest.json` exists.
 2. Restart SillyTavern or refresh the browser, then enable "忒修斯神器" in the extensions panel.
 
-When installed as a Git repository (via SillyTavern's URL install), the extension updates automatically, because `manifest.json` sets `"auto_update": true`. This requires the machine running SillyTavern to be able to reach GitHub.
+When installed as a Git repository (via SillyTavern's URL install), the extension updates automatically, because `manifest.json` sets `"auto_update": true`. This requires the machine running SillyTavern to be able to reach GitHub. URL install target: `https://github.com/xiongwang920-oss/theseus-artifact`
 
 ### Configuration
 
@@ -51,7 +52,8 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 - 内置「纯爱规则」（防止）：通过酒馆的扩展提示词接口，把隐藏的规则文本注入每次生成，同时插入故事字符串之后（`IN_PROMPT`）与聊天内 depth 0 两处。规则不在界面展示，也没有开关；不会写入角色卡或世界书，关闭插件或刷新页面即失效。
 - 角色卡逐字段扫描；世界书逐条目扫描；聊天扫描与实时检测可选。
 - 打开或切换角色卡时自动检测该角色卡（默认开启，可关闭），无需手动点击扫描。
-- 面板可停留在扩展设置页，也可弹出为可拖动的浮窗（记住位置）；点「最小化为悬浮球」会收起成右下角圆形按钮。
+- 面板可停留在扩展设置页，也可弹出为固定在右上角的浮窗；点「最小化为悬浮球」会收起成右下角圆形按钮。浮窗与悬浮球都不可拖动，布局不会错位。
+- 暗金主题 + 动效：进度条流动条纹、悬浮球轻微浮动与脉冲光环、结果卡片依次滑入、命中项呼吸高亮、按钮悬停扫光。悬浮球与面板标题使用手绘 SVG 徽标——一只手握剑贯穿牛头（忒修斯斩杀弥诺陶洛斯）。系统开启「减少动态效果」时会自动关闭全部动画。
 - 开场白改写 / 抹除：当角色卡开场白（`first_mes`）或备用开场白（`alternate_greetings`）命中时，弹窗内可「抹除命中片段」（本地删除引用的原文）或用模型「AI 改写」，确认后再保存回角色卡。
 - 文本按段落切块，先用本地关键词粗筛，再向自配模型请求严格 JSON。可关闭粗筛。
 - 扫描并发、超时、重试与取消均可配置或控制。连续 3 项失败时自动中止，保留已完成结果。
