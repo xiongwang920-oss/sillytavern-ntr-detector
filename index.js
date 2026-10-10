@@ -355,7 +355,8 @@ function renderResults() {
                 button.addEventListener('click', () => locateWorldEntry(result.world, result.uid));
                 details.append(button);
             }
-            if ((result.field === 'first_mes' || result.field === 'alternate_greetings') && d.has_ntr) {
+            // 开场白一律可改写，不再要求先命中——群像卡的开场白常常检测不出来。
+            if (result.field === 'first_mes' || result.field === 'alternate_greetings') {
                 const button = el('button', 'menu_button ntr-primary');
                 button.type = 'button';
                 button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>改写 / 抹除开场白';
@@ -407,68 +408,195 @@ function stripEvidence(text, evidence) {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
-async function requestRewrite(text, config, signal) {
-    const response = await fetch(config.url, {
-        method: 'POST', mode: 'cors', credentials: 'omit', redirect: 'error',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.key}` },
-        body: JSON.stringify({ model: config.model, temperature: config.temperature, stream: false,
-            messages: [{ role: 'system', content: config.rewritePrompt }, { role: 'user', content: text }] }),
-        signal,
-    });
-    if (response.status === 401 || response.status === 403) throw new Error('API Key 无效或模型权限不足（401/403）。');
-    if (!response.ok) throw new Error(`改写请求失败（HTTP ${response.status}）。`);
-    const body = await response.json();
-    const content = body?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) throw new Error('改写没有返回文本。');
-    return content.trim();
+// 取出响应体里最有用的一段，附在错误信息后面，避免只看到「HTTP 400」这种没有信息量的提示。
+async function readErrorSnippet(response) {
+    try {
+        const text = (await response.text()).replace(/\s+/g, ' ').trim();
+        return text ? `：${text.slice(0, 180)}` : '';
+    } catch { return ''; }
 }
-async function saveGreeting(result, newText) {
+// 改写请求：补上超时（改写比分类慢，至少给 90 秒），去掉 redirect: 'error'（部分中转站会 302，
+// 被拦下后就完全不发第二次请求），并把 HTTP 状态与响应片段一并抛出，方便定位「到底发没发出去」。
+async function requestRewrite(text, config, signal, log = () => { }) {
+    const timeout = Math.max(config.timeout, 90000);
+    const controller = new AbortController();
+    const onAbort = () => controller.abort();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    log(`POST ${config.url}（model=${config.model} · 输入 ${text.length} 字 · 最长等待 ${Math.round(timeout / 1000)} 秒）`);
+    try {
+        const response = await fetch(config.url, {
+            method: 'POST', mode: 'cors', credentials: 'omit',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.key}` },
+            body: JSON.stringify({ model: config.model, temperature: config.temperature, stream: false,
+                messages: [{ role: 'system', content: config.rewritePrompt }, { role: 'user', content: text }] }),
+            signal: controller.signal,
+        });
+        if (response.status === 401 || response.status === 403) throw new Error('API Key 无效或模型权限不足（401/403）。');
+        if (!response.ok) throw new Error(`改写请求失败（HTTP ${response.status}）${await readErrorSnippet(response)}`);
+        const body = await response.json();
+        const content = body?.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content.trim()) throw new Error('改写没有返回文本。');
+        log(`← HTTP ${response.status} · 收到 ${content.trim().length} 字`);
+        return content.trim();
+    } catch (error) {
+        if (timedOut) throw new Error(`改写请求超时（超过 ${Math.round(timeout / 1000)} 秒），接口没有返回结果。`);
+        if (signal?.aborted) throw abortError();
+        if (error instanceof TypeError) throw new Error('改写请求无法发出：请检查 API 地址是否可访问、网络是否通畅，以及服务端是否允许本页面的 CORS 来源。');
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+    }
+}
+// 备用开场白在不同酒馆版本里可能只存在于顶层或只存在于 data 下，这里统一取一份。
+function greetingArrayOf(card) {
+    if (Array.isArray(card?.data?.alternate_greetings)) return card.data.alternate_greetings;
+    if (Array.isArray(card?.alternate_greetings)) return card.alternate_greetings;
+    return [];
+}
+// 保存开场白。不再因为「检测时的角色卡和当前角色卡不一致」直接拒绝——只提示，仍按当前角色卡保存，
+// 这样群像卡来回切换后依然能改。写入失败时把服务端的真实回应带出来，而不是只丢一个 HTTP 码。
+async function saveGreeting(target, newText, log = () => { }) {
     const context = getContext();
     const card = context.characters?.[context.characterId];
-    if (!card || card.avatar !== result.avatar) throw new Error('当前角色卡已切换，无法保存。请重新检测后再改。');
+    if (!card) throw new Error('当前没有选中的角色卡，无法保存。');
+    const avatar = card.avatar;
+    if (!avatar) throw new Error('当前角色卡缺少文件名（avatar），无法保存。');
+    if (target.avatar && target.avatar !== avatar) log(`注意：检测时是 ${target.avatar}，当前是 ${avatar}，按当前角色卡保存。`);
     let value = newText;
-    if (result.field === 'alternate_greetings') {
-        const list = [...(card.data?.alternate_greetings ?? card.alternate_greetings ?? [])];
-        if (!Array.isArray(list) || typeof result.index !== 'number' || result.index >= list.length) throw new Error('备用开场白索引无效，无法保存。');
-        list[result.index] = newText;
+    if (target.field === 'alternate_greetings') {
+        const list = [...greetingArrayOf(card)];
+        if (typeof target.index !== 'number' || target.index < 0 || target.index >= list.length) throw new Error(`备用开场白索引无效（${target.index}），无法保存。`);
+        list[target.index] = newText;
         value = list;
     }
+    // ch_name 为空或 "." 时酒馆会直接 400，这里用文件名兜底。
+    const chName = (card.name && card.name !== '.') ? card.name : avatar.replace(/\.png$/i, '');
+    log(`POST /api/characters/edit-attribute · field=${target.field}${typeof target.index === 'number' ? ` #${target.index + 1}` : ''}`);
     const response = await fetch('/api/characters/edit-attribute', {
         method: 'POST', headers: getRequestHeaders(), cache: 'no-cache',
-        body: JSON.stringify({ avatar_url: card.avatar, ch_name: card.name, field: result.field, value }),
+        body: JSON.stringify({ avatar_url: avatar, ch_name: chName, field: target.field, value }),
     });
-    if (!response.ok) throw new Error(`保存到角色卡失败（HTTP ${response.status}）。`);
-    if (result.field === 'alternate_greetings') {
-        if (Array.isArray(card.alternate_greetings)) card.alternate_greetings[result.index] = newText;
-        if (Array.isArray(card.data?.alternate_greetings)) card.data.alternate_greetings[result.index] = newText;
+    if (!response.ok) {
+        const snippet = await readErrorSnippet(response);
+        const hint = response.status === 500 ? '（服务端写入异常，可能是这张卡结构特殊，可先在酒馆里手动改一次该字段再重试）' : '';
+        throw new Error(`保存到角色卡失败（HTTP ${response.status}）${snippet}${hint}`);
+    }
+    log(`← HTTP ${response.status} · 角色卡文件已写入`);
+    if (target.field === 'alternate_greetings') {
+        if (Array.isArray(card.alternate_greetings)) card.alternate_greetings[target.index] = newText;
+        if (Array.isArray(card.data?.alternate_greetings)) card.data.alternate_greetings[target.index] = newText;
     } else {
-        card[result.field] = newText;
-        if (card.data) card.data[result.field] = newText;
+        card[target.field] = newText;
+        if (card.data) card.data[target.field] = newText;
     }
 }
-function openGreetingEditor(result) {
-    const evidence = Array.isArray(result.decision.evidence) ? result.decision.evidence : [];
+// 把编辑框内容写进当前聊天的第一条消息。角色卡改动只影响新开的聊天，已存在的聊天需要这一步才看得到变化。
+async function applyGreetingToChat(newText, log = () => { }) {
+    const context = getContext();
+    const chat = context.chat;
+    if (!Array.isArray(chat) || !chat.length) throw new Error('当前没有聊天记录。');
+    const first = chat[0];
+    if (!first || first.is_user) throw new Error('当前聊天第一条不是角色消息，已跳过。');
+    first.mes = newText;
+    log('已替换当前聊天第 1 条消息，正在写回聊天文件…');
+    if (typeof context.saveChat === 'function') {
+        await context.saveChat();
+        log('← 聊天文件已保存');
+    } else {
+        log('未找到保存聊天的接口，改动可能不会被持久化。');
+    }
+    const node = document.querySelector('#chat .mes[mesid="0"] .mes_text');
+    if (!node) return;
+    let html = null;
+    try {
+        if (typeof context.messageFormatting === 'function') html = context.messageFormatting(newText, first.name ?? '', false, false, 0);
+    } catch { html = null; }
+    if (html === null) node.textContent = newText;
+    else node.innerHTML = html;
+}
+// 「开场白改写」下拉列表：直接读当前角色卡，不需要先扫描、也不要求命中 NTR。
+let greetingTargets = [];
+function collectGreetings() {
+    const context = getContext();
+    const card = context.characters?.[context.characterId];
+    if (!card) throw new Error('请先选择一张角色卡。');
+    const meta = { avatar: card.avatar, characterName: card.name };
+    const targets = [];
+    const first = typeof card.first_mes === 'string' ? card.first_mes : (typeof card.data?.first_mes === 'string' ? card.data.first_mes : '');
+    if (first.trim()) targets.push({ field: 'first_mes', title: '开场白', text: first, ...meta });
+    greetingArrayOf(card).forEach((text, index) => targets.push({ field: 'alternate_greetings', index, title: `备用开场白 ${index + 1}`, text: typeof text === 'string' ? text : '', ...meta }));
+    return targets;
+}
+function showGreetingPreview() {
+    const target = greetingTargets[Number($('#ntr-greet-select').val())];
+    const box = $('#ntr-greet-preview');
+    if (!target) return box.text('选择一条开场白后可查看预览。');
+    const flat = target.text.replace(/\s+/g, ' ').trim();
+    box.text(flat ? `${flat.slice(0, 150)}${flat.length > 150 ? '…' : ''}（共 ${target.text.length} 字）` : '（这条开场白是空的）');
+}
+function populateGreetings(keepValue = true) {
+    const select = $('#ntr-greet-select');
+    const open = $('#ntr-greet-open');
+    const prior = keepValue ? String(select.val() ?? '') : '';
+    greetingTargets = [];
+    let failure = null;
+    try { greetingTargets = collectGreetings(); } catch (error) { failure = error; }
+    select.empty();
+    if (failure || !greetingTargets.length) {
+        select.append(new Option(failure ? failure.message : '当前角色卡没有开场白', ''));
+        select.prop('disabled', true);
+        open.prop('disabled', true);
+        $('#ntr-greet-preview').text(failure ? failure.message : '当前角色卡没有开场白。');
+        return;
+    }
+    select.prop('disabled', false);
+    open.prop('disabled', false);
+    greetingTargets.forEach((target, index) => {
+        const flat = target.text.replace(/\s+/g, ' ').trim();
+        select.append(new Option(`${target.title}${flat ? ' · ' + flat.slice(0, 24) : '（空）'}`, String(index)));
+    });
+    if (prior && select.find(`option[value="${prior}"]`).length) select.val(prior);
+    showGreetingPreview();
+}
+// 通用开场白改写器：既用于扫描结果里的命中项，也用于「开场白改写」里手动挑的那一条。
+function openGreetingEditor(target) {
+    const evidence = Array.isArray(target.decision?.evidence) ? target.decision.evidence : [];
     const overlay = el('div', 'ntr-modal-backdrop');
     const modal = el('div', 'ntr-modal');
     const head = el('div', 'ntr-modal-head');
     head.innerHTML = `<span class="ntr-emblem">${emblemSVG('modal')}</span>`;
-    head.append(el('b', '', `改写开场白 · ${result.title}`));
-    const area = el('textarea', 'text_pole');
-    area.rows = 12;
-    area.value = result.text;
+    head.append(el('b', '', `改写开场白 · ${target.title || LABELS[target.field] || target.field}`));
+    const meta = el('div', 'ntr-modal-meta', `角色卡 ${target.characterName || '（未命名）'} · 字段 ${LABELS[target.field] ?? target.field}${typeof target.index === 'number' ? ` #${target.index + 1}` : ''} · 原文 ${String(target.text ?? '').length} 字 · 命中片段 ${evidence.length} 条`);
+    const area = el('textarea', 'text_pole ntr-modal-textarea');
+    area.rows = 10;
+    area.value = target.text ?? '';
     const actions = el('div', 'ntr-actions');
-    const erase = el('button', 'menu_button');
-    erase.innerHTML = '<i class="fa-solid fa-eraser"></i>抹除命中片段';
     const rewrite = el('button', 'menu_button');
     rewrite.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>AI 改写';
+    const erase = el('button', 'menu_button');
+    erase.innerHTML = '<i class="fa-solid fa-eraser"></i>抹除命中片段';
+    erase.disabled = !evidence.length;
+    erase.title = evidence.length ? '' : '这条开场白没有检测到的命中片段，请手动修改或直接用 AI 改写。';
     const saveBtn = el('button', 'menu_button ntr-primary');
     saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>保存到角色卡';
+    const syncBtn = el('button', 'menu_button');
+    syncBtn.innerHTML = '<i class="fa-solid fa-right-left"></i>同步到当前聊天';
+    syncBtn.title = '把编辑框的内容写进当前聊天的第一条消息（会覆盖现有内容）。';
     const cancel = el('button', 'menu_button');
-    cancel.innerHTML = '<i class="fa-solid fa-xmark"></i>取消';
-    for (const button of [erase, rewrite, saveBtn, cancel]) button.type = 'button';
-    const status = el('div', 'ntr-modal-status', `字段：${LABELS[result.field] ?? result.field} · 命中片段 ${evidence.length} 条。修改前请先确认内容。`);
-    actions.append(erase, rewrite, saveBtn, cancel);
-    modal.append(head, area, actions, status);
+    cancel.innerHTML = '<i class="fa-solid fa-xmark"></i>关闭';
+    for (const button of [rewrite, erase, saveBtn, syncBtn, cancel]) button.type = 'button';
+    // 运行日志：每一步请求都留痕，方便确认「到底有没有发出去、服务端回了什么」。
+    const log = el('div', 'ntr-modal-log');
+    const write = (message) => {
+        log.append(el('div', 'ntr-log-line', `${new Date().toLocaleTimeString('zh-CN', { hour12: false })} · ${message}`));
+        log.scrollTop = log.scrollHeight;
+    };
+    write(`已打开改写器，原文 ${String(target.text ?? '').length} 字。`);
+    actions.append(rewrite, erase, saveBtn, syncBtn, cancel);
+    modal.append(head, meta, area, actions, log);
     overlay.append(modal);
     document.body.append(overlay);
     const close = () => overlay.remove();
@@ -476,35 +604,45 @@ function openGreetingEditor(result) {
     overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
     erase.addEventListener('click', () => {
         const stripped = stripEvidence(area.value, evidence);
-        if (stripped === area.value.trim()) return status.textContent = '没有找到可抹除的命中片段，请改用 AI 改写。';
+        if (stripped === area.value.trim()) return write('没有找到可抹除的命中片段，请手动修改或改用 AI 改写。');
         area.value = stripped;
-        status.textContent = '已抹除命中的原文片段，确认无误后再保存。';
+        write('已在本地抹除命中的原文片段，确认后再保存。');
     });
     rewrite.addEventListener('click', async () => {
         let config;
-        try { config = currentConfig(); } catch (error) { return status.textContent = error.message; }
+        try { config = currentConfig(); } catch (error) { return write(`无法发起改写：${error.message}`); }
         rewrite.disabled = true;
-        status.textContent = '正在请求模型改写…';
+        write('正在请求模型改写…');
         try {
-            area.value = await requestRewrite(area.value, config);
-            status.textContent = '改写完成，确认无误后再保存。';
-        } catch (error) { status.textContent = error.message; }
+            area.value = await requestRewrite(area.value, config, undefined, write);
+            write('改写完成。确认内容后点「保存到角色卡」。');
+        } catch (error) { write(`改写失败：${error.message}`); }
         finally { rewrite.disabled = false; }
     });
     saveBtn.addEventListener('click', async () => {
         const text = area.value.trim();
-        if (!text) return status.textContent = '内容不能为空。';
+        if (!text) return write('内容为空，未保存。');
         saveBtn.disabled = true;
-        status.textContent = '正在保存到角色卡…';
+        write('正在保存到角色卡…');
         try {
-            await saveGreeting(result, text);
-            result.text = text;
-            result.edited = true;
+            await saveGreeting(target, text, write);
+            target.text = text;
+            target.edited = true;
             renderResults();
-            note('已保存到角色卡；新建聊天时会使用修改后的开场白。', 'success');
-            close();
-        } catch (error) { status.textContent = error.message; }
+            populateGreetings();
+            note('已写入角色卡；新建聊天时会使用修改后的开场白。', 'success');
+            write('保存结束。已存在的聊天不会自动跟着变，需要时点「同步到当前聊天」。');
+        } catch (error) { write(`保存失败：${error.message}`); }
         finally { saveBtn.disabled = false; }
+    });
+    syncBtn.addEventListener('click', async () => {
+        const text = area.value.trim();
+        if (!text) return write('内容为空，未同步。');
+        if (!window.confirm('将用编辑框的内容覆盖当前聊天的第一条消息，确定继续？')) return write('已取消同步。');
+        syncBtn.disabled = true;
+        try { await applyGreetingToChat(text, write); note('当前聊天第一条消息已更新。', 'success'); }
+        catch (error) { write(`同步失败：${error.message}`); }
+        finally { syncBtn.disabled = false; }
     });
 }
 function setScanning(busy) {
@@ -639,7 +777,7 @@ function buildUI() {
     const panel = el('div', 'ntr-panel'); panel.id = 'ntr-detector-panel';
     panel.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><span class="ntr-emblem">${emblemSVG('title')}</span><b>忒修斯神器</b><span class="ntr-tag">纯爱守护</span><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
       <div class="inline-drawer-content">
-      <div class="ntr-hero"><span class="ntr-emblem">${emblemSVG('hero')}</span><div class="ntr-hero-text"><div class="ntr-hero-title">斩杀牛头 · 守护纯爱</div><div class="ntr-hero-sub">内置纯爱规则已在后台静默注入，检测只读取文本，命中结果仅供人工复核。</div></div><span class="ntr-status">守护中</span></div>
+      <div class="ntr-hero"><span class="ntr-emblem">${emblemSVG('hero')}</span><div class="ntr-hero-text"><div class="ntr-hero-title">斩杀牛头 · 守护纯爱</div><div class="ntr-hero-sub">纯爱规则已静默注入 · 检测只读文本 · 命中仅供复核</div></div><span class="ntr-status">守护中</span></div>
       <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button"><i class="fa-solid fa-window-restore"></i><span class="ntr-btn-label">浮窗显示</span></button><button id="ntr-minimize" class="menu_button" type="button"><i class="fa-solid fa-circle-dot"></i>最小化为悬浮球</button></div>
       <section class="ntr-card"><h4><i class="fa-solid fa-plug"></i>模型接口</h4>
       <label>API Base URL<input id="ntr-url" class="text_pole" type="url" autocomplete="off"></label>
@@ -660,6 +798,12 @@ function buildUI() {
       <label class="ntr-check"><input id="ntr-chat" type="checkbox">扫描当前聊天记录</label>
       <label class="ntr-check"><input id="ntr-realtime" type="checkbox">实时检测新 AI 回复</label>
       <label class="ntr-check"><input id="ntr-autocard" type="checkbox">打开角色卡时自动检测（无需手动扫描）</label>
+      </section>
+      <section class="ntr-card"><h4><i class="fa-solid fa-feather-pointed"></i>开场白改写</h4>
+      <div class="ntr-hint">不依赖检测结果，直接改写当前角色卡里的任意一条开场白。</div>
+      <label>选择开场白<select id="ntr-greet-select" class="text_pole"></select></label>
+      <div id="ntr-greet-preview" class="ntr-greet-preview">选择一条开场白后可查看预览。</div>
+      <div class="ntr-actions"><button id="ntr-greet-open" class="menu_button ntr-primary" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i>打开改写器</button><button id="ntr-greet-refresh" class="menu_button" type="button"><i class="fa-solid fa-rotate"></i>刷新列表</button></div>
       </section>
       <section class="ntr-card"><h4><i class="fa-solid fa-crosshairs"></i>扫描与结果</h4>
       <label class="ntr-check"><input id="ntr-card" type="checkbox" checked>扫描当前角色卡</label>
@@ -698,6 +842,14 @@ function buildUI() {
     });
     $('#ntr-world').on('focus', populateWorlds);
     populateWorlds();
+    $('#ntr-greet-select').on('change', showGreetingPreview);
+    $('#ntr-greet-refresh').on('click', () => { populateGreetings(false); note('开场白列表已刷新。', 'info'); });
+    $('#ntr-greet-open').on('click', () => {
+        const target = greetingTargets[Number($('#ntr-greet-select').val())];
+        if (!target) return note('请先选择一条开场白。', 'warning');
+        openGreetingEditor(target);
+    });
+    populateGreetings(false);
     $('#ntr-float-toggle').on('click', () => { settings.floatMode = !settings.floatMode; settings.minimized = false; save(); applyPanelMode(); });
     $('#ntr-minimize').on('click', () => { settings.floatMode = true; settings.minimized = true; save(); applyPanelMode(); });
     launcher.addEventListener('click', () => { settings.floatMode = true; settings.minimized = false; save(); applyPanelMode(); });
@@ -736,7 +888,7 @@ $(function () {
     buildUI();
     applyPureLoveRule();
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-    eventSource.on(event_types.CHAT_CHANGED, () => { applyPureLoveRule(); scheduleAutoScan(); });
-    eventSource.on(event_types.APP_READY, () => { applyPureLoveRule(); scheduleAutoScan(); });
+    eventSource.on(event_types.CHAT_CHANGED, () => { applyPureLoveRule(); scheduleAutoScan(); populateGreetings(); });
+    eventSource.on(event_types.APP_READY, () => { applyPureLoveRule(); scheduleAutoScan(); populateGreetings(); });
     scheduleAutoScan();
 });
