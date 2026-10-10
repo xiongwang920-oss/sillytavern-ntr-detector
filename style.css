@@ -162,6 +162,47 @@
     animation: ntr-dot-pulse 2.4s ease-in-out infinite;
 }
 
+/* ---------- 版本徽章与更新提示 ---------- */
+.ntr-version {
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: .66em;
+    font-weight: 600;
+    letter-spacing: .04em;
+    vertical-align: middle;
+    border-radius: 999px;
+    color: var(--ntr-gold-light);
+    border: 1px solid var(--ntr-line);
+    background: rgba(224, 179, 82, .12);
+}
+.ntr-update {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 7px;
+    padding: 6px 9px;
+    border-radius: 9px;
+    font-size: .82em;
+    line-height: 1.35;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(255, 255, 255, .04);
+    animation: ntr-fade-up .3s var(--ntr-ease) both;
+}
+.ntr-update[data-state="new"] {
+    border-color: rgba(224, 179, 82, .5);
+    background: linear-gradient(135deg, rgba(224, 179, 82, .2), transparent);
+    color: var(--ntr-gold-light);
+}
+.ntr-update[data-state="error"] {
+    border-color: rgba(239, 84, 79, .35);
+    background: rgba(239, 84, 79, .1);
+    color: #ffb4b0;
+}
+.ntr-update[data-state="checking"],
+.ntr-update[data-state="latest"] { opacity: .78; }
+.ntr-update .menu_button { display: none; margin-left: auto; flex: none; }
+.ntr-update[data-state="new"] .menu_button { display: inline-flex; }
+
 /* 分组卡片 */
 .ntr-card {
     margin: 7px 0;

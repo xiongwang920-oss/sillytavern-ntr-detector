@@ -52,7 +52,8 @@ const DEFAULTS = {
     baseUrl: 'https://api.openai.com/v1', apiKey: '', model: '', temperature: 0,
     concurrency: 3, timeout: 30, chunkSize: 2000, prompt: '', rewritePrompt: '', skipPrefilter: false,
     scanChat: false, realtime: false, autoCard: true, floatMode: false, minimized: false,
-    floatX: null, floatY: null, launcherX: null, launcherY: null, cache: {},
+    floatX: null, floatY: null, launcherX: null, launcherY: null,
+    checkUpdate: true, updateCheckedAt: 0, cache: {},
 };
 const KEYWORDS = /ntr|netorare|netori|netorase|寝取(?:られ|り)?|绿帽|綠帽|绿奴|綠奴|戴绿|戴綠|被绿|被綠|出轨|出軌|偷情|劈腿|cuckold|cuckquean|cheating/i;
 const FIELDS = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions'];
@@ -820,8 +821,9 @@ function buildUI() {
     const panel = el('div', 'ntr-panel'); panel.id = 'ntr-detector-panel';
     panel.innerHTML = `<div class="inline-drawer"><div class="inline-drawer-toggle inline-drawer-header"><span class="ntr-emblem">${emblemSVG('title')}</span><b>忒修斯神器</b><span class="ntr-tag">纯爱守护</span><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
       <div class="inline-drawer-content">
-      <div class="ntr-hero"><span class="ntr-emblem">${emblemSVG('hero')}</span><div class="ntr-hero-text"><div class="ntr-hero-title">斩杀牛头 · 守护纯爱</div><div class="ntr-hero-sub">纯爱规则已静默注入 · 检测只读文本 · 命中仅供复核</div></div><span class="ntr-status">守护中</span></div>
-      <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button"><i class="fa-solid fa-window-restore"></i><span class="ntr-btn-label">浮窗显示</span></button><button id="ntr-minimize" class="menu_button" type="button"><i class="fa-solid fa-circle-dot"></i>最小化为悬浮球</button></div>
+      <div class="ntr-hero"><span class="ntr-emblem">${emblemSVG('hero')}</span><div class="ntr-hero-text"><div class="ntr-hero-title">斩杀牛头 · 守护纯爱<span id="ntr-version" class="ntr-version" title="当前插件版本">v—</span></div><div class="ntr-hero-sub">纯爱规则已静默注入 · 检测只读文本 · 命中仅供复核</div></div><span class="ntr-status">守护中</span></div>
+      <div id="ntr-update-bar" class="ntr-update ntr-hidden"><i class="fa-solid fa-circle-up"></i><span id="ntr-update-text"></span><button id="ntr-update-open" class="menu_button" type="button"><i class="fa-solid fa-arrow-up-right-from-square"></i>查看更新</button></div>
+      <div class="ntr-actions"><button id="ntr-float-toggle" class="menu_button" type="button"><i class="fa-solid fa-window-restore"></i><span class="ntr-btn-label">浮窗显示</span></button><button id="ntr-minimize" class="menu_button" type="button"><i class="fa-solid fa-circle-dot"></i>最小化为悬浮球</button><button id="ntr-update-now" class="menu_button" type="button"><i class="fa-solid fa-cloud-arrow-down"></i>检查更新</button></div>
       <section class="ntr-card"><h4><i class="fa-solid fa-plug"></i>模型接口</h4>
       <label>API Base URL<input id="ntr-url" class="text_pole" type="url" autocomplete="off"></label>
       <label>API Key<input id="ntr-key" class="text_pole" type="password" autocomplete="off"></label>
@@ -841,6 +843,7 @@ function buildUI() {
       <label class="ntr-check"><input id="ntr-chat" type="checkbox">扫描当前聊天记录</label>
       <label class="ntr-check"><input id="ntr-realtime" type="checkbox">实时检测新 AI 回复</label>
       <label class="ntr-check"><input id="ntr-autocard" type="checkbox">打开角色卡时自动检测（无需手动扫描）</label>
+      <label class="ntr-check"><input id="ntr-update-auto" type="checkbox">启动时检查插件更新（每 12 小时最多一次）</label>
       </section>
       <section class="ntr-card"><h4><i class="fa-solid fa-feather-pointed"></i>开场白改写</h4>
       <div class="ntr-hint">不依赖检测结果，直接改写当前角色卡里的任意一条开场白。</div>
@@ -865,7 +868,7 @@ function buildUI() {
     document.body.append(floatBox, launcher);
     // 先挂到文档中，保证下面的选择器能取到表单控件；浮窗模式稍后由 applyPanelMode 搬移。
     document.querySelector('#extensions_settings')?.append(panel);
-    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-rewrite': 'rewritePrompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime', '#ntr-autocard': 'autoCard' };
+    const map = { '#ntr-url': 'baseUrl', '#ntr-key': 'apiKey', '#ntr-model': 'model', '#ntr-temp': 'temperature', '#ntr-concurrency': 'concurrency', '#ntr-timeout': 'timeout', '#ntr-chunk': 'chunkSize', '#ntr-prompt': 'prompt', '#ntr-rewrite': 'rewritePrompt', '#ntr-skip': 'skipPrefilter', '#ntr-chat': 'scanChat', '#ntr-realtime': 'realtime', '#ntr-autocard': 'autoCard', '#ntr-update-auto': 'checkUpdate' };
     for (const [selector, key] of Object.entries(map)) {
         const input = $(selector);
         input.prop('type') === 'checkbox' ? input.prop('checked', settings[key]) : input.val(settings[key]);
@@ -893,6 +896,11 @@ function buildUI() {
         openGreetingEditor(target);
     });
     populateGreetings(false);
+    renderVersion();
+    readLocalVersion().then(version => { localVersion = version; renderVersion(); });
+    $('#ntr-update-now').on('click', () => checkUpdate());
+    $('#ntr-update-open').on('click', () => window.open(`${REPO_HOME}/commits/main`, '_blank', 'noopener,noreferrer'));
+    scheduleUpdateCheck();
     $('#ntr-float-toggle').on('click', () => { settings.floatMode = !settings.floatMode; settings.minimized = false; save(); applyPanelMode(); });
     $('#ntr-minimize').on('click', () => { settings.floatMode = true; settings.minimized = true; save(); applyPanelMode(); });
     launcher.addEventListener('click', () => { settings.floatMode = true; settings.minimized = false; save(); applyPanelMode(); });
@@ -913,6 +921,95 @@ function buildUI() {
         }
     });
     applyPanelMode();
+}
+// ——— 版本号与更新检查 ———
+// index.js 是 ES module，用 import.meta.url 定位自身目录，就不必写死带中文的扩展路径。
+const SELF_DIR = new URL('.', import.meta.url);
+const REPO_SLUG = 'xiongwang920-oss/theseus-artifact';
+const REPO_HOME = `https://github.com/${REPO_SLUG}`;
+// 国内直连 raw.githubusercontent.com 经常不通，所以依次退到 jsDelivr（GitHub 的公共 CDN）。
+const VERSION_SOURCES = [
+    `https://raw.githubusercontent.com/${REPO_SLUG}/main/manifest.json`,
+    `https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/manifest.json`,
+];
+const UPDATE_INTERVAL = 12 * 60 * 60 * 1000;
+let localVersion = '';
+function compareVersion(a, b) {
+    const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+    const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const diff = (pa[i] || 0) - (pb[i] || 0);
+        if (diff) return diff;
+    }
+    return 0;
+}
+async function readLocalVersion() {
+    try {
+        const response = await fetch(new URL('manifest.json', SELF_DIR), { cache: 'no-store' });
+        if (!response.ok) return '';
+        const data = await response.json();
+        return typeof data.version === 'string' ? data.version : '';
+    } catch { return ''; }
+}
+async function fetchLatestVersion() {
+    let lastError = null;
+    for (const url of VERSION_SOURCES) {
+        try {
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) { lastError = new Error(`HTTP ${response.status}`); continue; }
+            const data = await response.json();
+            if (typeof data.version === 'string' && data.version) return data.version;
+            lastError = new Error('返回内容里没有 version 字段');
+        } catch (error) { lastError = error; }
+    }
+    throw lastError ?? new Error('无法访问更新源');
+}
+function renderVersion() {
+    const node = document.getElementById('ntr-version');
+    if (node) node.textContent = localVersion ? `v${localVersion}` : 'v—';
+}
+// state: checking | latest | new | error
+function renderUpdateBar(latest, state) {
+    const bar = document.getElementById('ntr-update-bar');
+    const text = document.getElementById('ntr-update-text');
+    if (!bar || !text) return;
+    bar.dataset.state = state;
+    bar.classList.remove('ntr-hidden');
+    if (state === 'checking') text.textContent = '正在检查更新…';
+    else if (state === 'latest') text.textContent = `已是最新版本（v${localVersion}）。`;
+    else if (state === 'error') text.textContent = `检查更新失败：${latest}`;
+    else text.textContent = `发现新版本 v${latest}（当前 v${localVersion}），更新后请刷新页面。`;
+}
+function hideUpdateBar() {
+    document.getElementById('ntr-update-bar')?.classList.add('ntr-hidden');
+}
+async function checkUpdate({ silent = false } = {}) {
+    if (!localVersion) localVersion = await readLocalVersion();
+    renderVersion();
+    if (!silent) {
+        renderUpdateBar('', 'checking');
+        $('#ntr-update-now').prop('disabled', true);
+    }
+    try {
+        const latest = await fetchLatestVersion();
+        settings.updateCheckedAt = Date.now();
+        save();
+        if (compareVersion(latest, localVersion) > 0) renderUpdateBar(latest, 'new');
+        else if (silent) hideUpdateBar();
+        else renderUpdateBar(latest, 'latest');
+    } catch (error) {
+        // 静默检查失败不做任何打扰：多半是访问不到 GitHub，不该天天弹提示
+        if (silent) hideUpdateBar();
+        else renderUpdateBar(error?.message || '网络不可用', 'error');
+    } finally {
+        $('#ntr-update-now').prop('disabled', false);
+    }
+}
+function scheduleUpdateCheck() {
+    if (!settings.checkUpdate) return;
+    const last = Number(settings.updateCheckedAt) || 0;
+    if (Date.now() - last < UPDATE_INTERVAL) return;
+    setTimeout(() => checkUpdate({ silent: true }), 4000);
 }
 // ——— 浮窗 / 悬浮球拖动 ———
 // 位置可以随便放，但至少留一点在视口里，免得拖出去就再也找不回来。

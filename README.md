@@ -19,6 +19,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 - Gold-on-dark theme with motion: animated progress stripes, floating launcher with a pulsing halo, staggered result cards, pulsing highlights on hits, and hover sheen on buttons. The launcher and panel header use a hand-drawn SVG emblem of Theseus driving a sword through the Minotaur's head. All animation is disabled automatically for users who prefer reduced motion.
 - Greeting rewrite: the "开场白改写" card lists every greeting of the current character card (`first_mes` and all `alternate_greetings`) so you can open the editor without scanning first and without a NTR hit; greeting rows in the scan results also carry the "改写 / 抹除开场白" button unconditionally. Inside the editor you can rewrite with your model, strip the quoted evidence locally (only for scanned hits), review the result, and save it back to the character card. Card edits only affect new chats; use "同步到当前聊天" to also write the new greeting into the first message of the current chat. The editor keeps a running log showing which URL each request went to and what the server answered, which makes a failed rewrite easy to diagnose.
 - Editor layout: the text area fills all remaining height automatically, so there is nothing to drag and the first line can no longer be pushed out of view. The title bar can be held to drag the dialog (desktop), double-click it to reset the position. On phones the dialog fills the screen, buttons wrap, and the text area gets the maximum available height.
+- Version and update check: the badge at the top of the panel shows the installed version. On startup the extension quietly asks GitHub for the latest version (at most once every 12 hours, toggleable under 检测行为) and shows a banner plus a "查看更新" link when a newer one exists; you can also press "检查更新" at any time. It tries `raw.githubusercontent.com` then jsDelivr, and stays silent when neither is reachable.
 - Text is split into chunks by paragraph, pre-filtered locally by keywords, then sent to your model for strict JSON output. The pre-filter can be disabled.
 - Configurable concurrency, timeout, retries, and cancellation. The scan aborts automatically after 3 consecutive failures and keeps already-completed results.
 - The SHA-256 cache key includes text, model, endpoint, prompt, and related parameters; cached under `extension_settings['ntr-detector'].cache`.
@@ -31,6 +32,8 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 2. Restart SillyTavern or refresh the browser, then enable "忒修斯神器" in the extensions panel.
 
 When installed as a Git repository (via SillyTavern's URL install), the extension updates automatically, because `manifest.json` sets `"auto_update": true`. This requires the machine running SillyTavern to be able to reach GitHub. URL install target: `https://github.com/xiongwang920-oss/theseus-artifact`
+
+If you installed it by copying the folder by hand, `auto_update` does nothing. Use the "检查更新" button in the panel instead: it compares the local `manifest.json` against the one on GitHub and tells you when a newer version is out. Updating still means replacing the files yourself, then refreshing the page.
 
 ### Configuration
 
@@ -57,6 +60,7 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 - 暗金主题 + 动效：进度条流动条纹、悬浮球轻微浮动与脉冲光环、结果卡片依次滑入、命中项呼吸高亮、按钮悬停扫光。悬浮球与面板标题使用手绘 SVG 徽标——一只手握剑贯穿牛头（忒修斯斩杀弥诺陶洛斯）。系统开启「减少动态效果」时会自动关闭全部动画。
 - 开场白改写：面板里的「开场白改写」卡片直接列出当前角色卡的全部开场白（`first_mes` 与所有 `alternate_greetings`），不需要先扫描、也不要求命中 NTR 就能打开改写器；扫描结果里的开场白条目也一律带「改写 / 抹除开场白」按钮。改写器内可用模型「AI 改写」、本地「抹除命中片段」（仅扫描命中的条目可用），确认后保存回角色卡。角色卡的改动只影响新建聊天，若要让当前聊天也变化，可再点「同步到当前聊天」把新开场白写进当前聊天的第一条消息。改写器底部带运行日志，逐步显示请求发往哪个地址、服务端返回了什么状态，便于排查改写失败的原因。
 - 改写器适配：文本框自动占满弹窗的剩余高度（无需手动拖拽，也不会再出现首行被顶出可视区的情况）；标题栏可按住拖动，桌面端能把弹窗挪开以查看被挡住的正文，双击标题栏复位；手机端弹窗自动铺满整屏，按钮自动换行，文本框拿到最大可用高度。
+- 版本号与更新检查：面板顶部徽章显示当前版本。默认在启动后静默检查一次 GitHub 上的最新版本（每 12 小时最多一次，可在「检测行为」里关掉），发现新版时在面板顶部给出提示条和「查看更新」入口；也可以随时点「检查更新」手动查。检查源依次尝试 `raw.githubusercontent.com` 与 jsDelivr，都不可达时静默跳过，不会打扰使用。
 - 文本按段落切块，先用本地关键词粗筛，再向自配模型请求严格 JSON。可关闭粗筛。
 - 扫描并发、超时、重试与取消均可配置或控制。连续 3 项失败时自动中止，保留已完成结果。
 - SHA-256 缓存键包含文本、模型、接口地址、提示词和相关参数；缓存位于 `extension_settings['ntr-detector'].cache`。
@@ -69,6 +73,8 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 2. 重启 SillyTavern 或刷新浏览器，在扩展面板启用「忒修斯神器」。
 
 当以 Git 仓库方式（酒馆的 URL 安装）安装时，扩展会自动更新，因为 `manifest.json` 中设置了 `"auto_update": true`。这要求运行 SillyTavern 的机器能访问 GitHub。
+
+如果是手动复制文件夹安装的，`auto_update` 不起作用，请用面板里的「检查更新」按钮：它会把本地的 `manifest.json` 和 GitHub 上的版本做比对，有新版本时给出提示。更新方式仍是自己替换文件，然后刷新页面。
 
 本仓库不会自动安装到你的 SillyTavern。
 
