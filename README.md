@@ -18,6 +18,7 @@ A third-party front-end extension for **SillyTavern 1.12+** that both prevents a
 - The panel can stay in the extensions settings page or be popped out into a fixed floating window pinned to the top-right corner; a round floating-ball button minimizes it. Neither the window nor the ball can be dragged, so the layout never shifts.
 - Gold-on-dark theme with motion: animated progress stripes, floating launcher with a pulsing halo, staggered result cards, pulsing highlights on hits, and hover sheen on buttons. The launcher and panel header use a hand-drawn SVG emblem of Theseus driving a sword through the Minotaur's head. All animation is disabled automatically for users who prefer reduced motion.
 - Greeting rewrite: the "开场白改写" card lists every greeting of the current character card (`first_mes` and all `alternate_greetings`) so you can open the editor without scanning first and without a NTR hit; greeting rows in the scan results also carry the "改写 / 抹除开场白" button unconditionally. Inside the editor you can rewrite with your model, strip the quoted evidence locally (only for scanned hits), review the result, and save it back to the character card. Card edits only affect new chats; use "同步到当前聊天" to also write the new greeting into the first message of the current chat. The editor keeps a running log showing which URL each request went to and what the server answered, which makes a failed rewrite easy to diagnose.
+- Editor layout: the text area fills all remaining height automatically, so there is nothing to drag and the first line can no longer be pushed out of view. The title bar can be held to drag the dialog (desktop), double-click it to reset the position. On phones the dialog fills the screen, buttons wrap, and the text area gets the maximum available height.
 - Text is split into chunks by paragraph, pre-filtered locally by keywords, then sent to your model for strict JSON output. The pre-filter can be disabled.
 - Configurable concurrency, timeout, retries, and cancellation. The scan aborts automatically after 3 consecutive failures and keeps already-completed results.
 - The SHA-256 cache key includes text, model, endpoint, prompt, and related parameters; cached under `extension_settings['ntr-detector'].cache`.
@@ -55,6 +56,7 @@ The API Key is stored in SillyTavern's `extension_settings['ntr-detector']` and 
 - 面板可停留在扩展设置页，也可弹出为固定在右上角的浮窗；点「最小化为悬浮球」会收起成右下角圆形按钮。浮窗与悬浮球都不可拖动，布局不会错位。
 - 暗金主题 + 动效：进度条流动条纹、悬浮球轻微浮动与脉冲光环、结果卡片依次滑入、命中项呼吸高亮、按钮悬停扫光。悬浮球与面板标题使用手绘 SVG 徽标——一只手握剑贯穿牛头（忒修斯斩杀弥诺陶洛斯）。系统开启「减少动态效果」时会自动关闭全部动画。
 - 开场白改写：面板里的「开场白改写」卡片直接列出当前角色卡的全部开场白（`first_mes` 与所有 `alternate_greetings`），不需要先扫描、也不要求命中 NTR 就能打开改写器；扫描结果里的开场白条目也一律带「改写 / 抹除开场白」按钮。改写器内可用模型「AI 改写」、本地「抹除命中片段」（仅扫描命中的条目可用），确认后保存回角色卡。角色卡的改动只影响新建聊天，若要让当前聊天也变化，可再点「同步到当前聊天」把新开场白写进当前聊天的第一条消息。改写器底部带运行日志，逐步显示请求发往哪个地址、服务端返回了什么状态，便于排查改写失败的原因。
+- 改写器适配：文本框自动占满弹窗的剩余高度（无需手动拖拽，也不会再出现首行被顶出可视区的情况）；标题栏可按住拖动，桌面端能把弹窗挪开以查看被挡住的正文，双击标题栏复位；手机端弹窗自动铺满整屏，按钮自动换行，文本框拿到最大可用高度。
 - 文本按段落切块，先用本地关键词粗筛，再向自配模型请求严格 JSON。可关闭粗筛。
 - 扫描并发、超时、重试与取消均可配置或控制。连续 3 项失败时自动中止，保留已完成结果。
 - SHA-256 缓存键包含文本、模型、接口地址、提示词和相关参数；缓存位于 `extension_settings['ntr-detector'].cache`。

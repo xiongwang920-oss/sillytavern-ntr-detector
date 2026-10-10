@@ -569,6 +569,9 @@ function openGreetingEditor(target) {
     const head = el('div', 'ntr-modal-head');
     head.innerHTML = `<span class="ntr-emblem">${emblemSVG('modal')}</span>`;
     head.append(el('b', '', `改写开场白 · ${target.title || LABELS[target.field] || target.field}`));
+    const grip = el('i', 'fa-solid fa-grip-lines ntr-grip');
+    grip.title = '按住标题栏可拖动弹窗（双击标题栏复位）';
+    head.append(grip);
     const meta = el('div', 'ntr-modal-meta', `角色卡 ${target.characterName || '（未命名）'} · 字段 ${LABELS[target.field] ?? target.field}${typeof target.index === 'number' ? ` #${target.index + 1}` : ''} · 原文 ${String(target.text ?? '').length} 字 · 命中片段 ${evidence.length} 条`);
     const area = el('textarea', 'text_pole ntr-modal-textarea');
     area.rows = 10;
@@ -599,6 +602,45 @@ function openGreetingEditor(target) {
     modal.append(head, meta, area, actions, log);
     overlay.append(modal);
     document.body.append(overlay);
+    // 标题栏拖动：桌面端可以把弹窗挪开，方便看清被挡住的正文。手机端弹窗是全屏的，这里直接跳过。
+    let dragX = 0;
+    let dragY = 0;
+    let dragFromX = 0;
+    let dragFromY = 0;
+    let dragging = false;
+    const isNarrow = () => window.matchMedia('(max-width: 640px)').matches;
+    head.addEventListener('dblclick', () => {
+        dragX = 0;
+        dragY = 0;
+        modal.style.left = '0px';
+        modal.style.top = '0px';
+    });
+    head.addEventListener('pointerdown', event => {
+        if (dragging || event.target.closest('button') || isNarrow()) return;
+        dragging = true;
+        dragFromX = event.clientX - dragX;
+        dragFromY = event.clientY - dragY;
+        head.classList.add('ntr-dragging');
+        try { head.setPointerCapture(event.pointerId); } catch { /* 忽略不支持捕获的浏览器 */ }
+    });
+    head.addEventListener('pointermove', event => {
+        if (!dragging) return;
+        // 限制在视口内，避免把弹窗拖到屏幕外面找不回来
+        const maxX = Math.max(30, (window.innerWidth - modal.offsetWidth) / 2);
+        const maxY = Math.max(30, (window.innerHeight - modal.offsetHeight) / 2);
+        dragX = Math.max(-maxX, Math.min(maxX, event.clientX - dragFromX));
+        dragY = Math.max(-maxY, Math.min(maxY, event.clientY - dragFromY));
+        modal.style.left = `${Math.round(dragX)}px`;
+        modal.style.top = `${Math.round(dragY)}px`;
+    });
+    const stopDrag = event => {
+        if (!dragging) return;
+        dragging = false;
+        head.classList.remove('ntr-dragging');
+        try { head.releasePointerCapture(event.pointerId); } catch { /* 忽略 */ }
+    };
+    head.addEventListener('pointerup', stopDrag);
+    head.addEventListener('pointercancel', stopDrag);
     const close = () => overlay.remove();
     cancel.addEventListener('click', close);
     overlay.addEventListener('click', event => { if (event.target === overlay) close(); });

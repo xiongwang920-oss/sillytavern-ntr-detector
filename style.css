@@ -373,6 +373,7 @@
    ============================================================ */
 .ntr-float {
     position: fixed;
+    box-sizing: border-box;
     top: 68px;
     right: 16px;
     left: auto;
@@ -436,19 +437,24 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 14px;
     background: rgba(0, 0, 0, .6);
     backdrop-filter: blur(3px);
     animation: ntr-backdrop-in .22s ease both;
 }
+/* 固定高度 + overflow:hidden，让内部各块靠 flex 分配空间：
+   文本框自动吃掉剩余高度，不需要手动拖拽，也就不会再出现顶行被压住的情况。 */
 .ntr-modal {
-    width: min(700px, 96vw);
-    max-height: 88vh;
-    overflow: auto;
+    position: relative;
+    box-sizing: border-box;
+    width: min(720px, 100%);
+    height: min(760px, 88vh);
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 12px 14px;
+    overflow: hidden;
     border: 1px solid var(--ntr-line);
     border-radius: 14px;
     background:
@@ -458,13 +464,26 @@
     box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
     animation: ntr-pop-in .3s var(--ntr-ease) both;
 }
+/* 标题栏即拖动把手（桌面端）：按住可把弹窗挪到不挡内容的位置 */
 .ntr-modal .ntr-modal-head {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: none;
+    padding: 2px 0;
     font-size: .98em;
     letter-spacing: .03em;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
 }
+.ntr-modal .ntr-modal-head.ntr-dragging { cursor: grabbing; }
+.ntr-modal .ntr-modal-head .ntr-grip {
+    font-size: .82em;
+    opacity: .42;
+    transition: opacity .2s var(--ntr-ease);
+}
+.ntr-modal .ntr-modal-head:hover .ntr-grip { opacity: .85; }
 .ntr-modal .ntr-modal-head b {
     background: linear-gradient(92deg, var(--ntr-gold-light), var(--ntr-gold) 60%, #f6e3b0);
     -webkit-background-clip: text;
@@ -477,17 +496,21 @@
     height: 1px;
     background: linear-gradient(90deg, var(--ntr-line), transparent);
 }
+/* 文本框撑满剩余高度；关掉手动拖拽，避免拉高后把首行顶出可视区 */
 .ntr-modal textarea {
     width: 100%;
     box-sizing: border-box;
-    min-height: 180px;
-    resize: vertical;
-    line-height: 1.5;
+    flex: 1 1 auto;
+    min-height: 90px;
+    resize: none;
+    line-height: 1.55;
     border-radius: 10px;
     border: 1px solid var(--ntr-line);
     background: rgba(0, 0, 0, .3);
     color: inherit;
-    padding: 8px 10px;
+    padding: 9px 11px;
+    overflow: auto;
+    scrollbar-width: thin;
     transition: border-color .2s var(--ntr-ease), box-shadow .2s var(--ntr-ease);
 }
 .ntr-modal textarea:focus {
@@ -495,14 +518,17 @@
     border-color: var(--ntr-gold);
     box-shadow: 0 0 0 3px rgba(224, 179, 82, .18);
 }
-.ntr-modal .ntr-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ntr-modal .ntr-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .ntr-modal .ntr-modal-meta {
+    flex: none;
     font-size: .82em;
     line-height: 1.4;
     opacity: .74;
 }
 /* 运行日志：让使用者能直接看到请求发到哪、服务端回了什么 */
 .ntr-modal .ntr-modal-log {
+    flex: 0 1 auto;
+    min-height: 0;
     max-height: 118px;
     overflow: auto;
     padding: 7px 9px;
@@ -543,6 +569,30 @@
 /* ============================================================
    自适应与无障碍
    ============================================================ */
+/* 手机端：改写弹窗铺满整屏，文本框自然拿到最大高度，不再需要拖拽调整 */
+@media (max-width: 640px) {
+    .ntr-modal-backdrop { padding: 0; align-items: stretch; }
+    .ntr-modal {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        padding: calc(10px + env(safe-area-inset-top, 0px)) 10px calc(12px + env(safe-area-inset-bottom, 0px));
+        gap: 7px;
+        animation: ntr-backdrop-in .22s ease both;
+    }
+    .ntr-modal .ntr-modal-head { cursor: default; touch-action: auto; font-size: .94em; }
+    .ntr-modal .ntr-modal-head .ntr-grip { display: none; }
+    .ntr-modal .ntr-modal-meta { font-size: .74em; }
+    .ntr-modal textarea { min-height: 72px; padding: 8px 9px; font-size: .96em; }
+    .ntr-modal .ntr-actions { gap: 5px; }
+    .ntr-modal .ntr-actions .menu_button { flex: 1 1 auto; text-align: center; font-size: .84em; padding: 8px 6px; }
+    .ntr-modal .ntr-modal-log { max-height: 84px; font-size: .72em; }
+}
+
 @media (max-width: 480px) {
     #ntr-detector-panel .ntr-grid { grid-template-columns: minmax(0, 1fr); }
     .ntr-float { top: 64px; right: 8px; left: 8px; width: auto; }
